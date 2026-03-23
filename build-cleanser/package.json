@@ -1,0 +1,24 @@
+{
+    "name": "build-cleanser",
+    "version": "1.0.0",
+    "description": "",
+    "main": "index.js",
+    "scripts": {
+        "dev": "tsx index.ts",
+        "build": "tsc",
+        "start": "node dist/index.js",
+        "kb": "tsx scripts/build-knowledgebase.ts"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "type": "module",
+    "dependencies": {
+        "yaml": "^2.8.2"
+    },
+    "devDependencies": {
+        "@types/node": "^25.5.0",
+        "tsx": "^4.21.0",
+        "typescript": "^5.9.3"
+    }
+}
