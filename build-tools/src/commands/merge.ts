@@ -96,17 +96,24 @@ function resolveRefs(value: unknown, baseDir: string): unknown {
     }
 
     // Plain object — walk all values
+    const OPENAPI_PASSTHROUGH_KEYS = new Set(["paths", "components"]);
     const result: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(obj)) {
         if (isRefObject(v)) {
-            const [filePart] = (v as RefObject).$ref.split("#");
-            const targetAbs = resolve(baseDir, filePart);
-            const refBaseDir =
-                existsSync(targetAbs) && statSync(targetAbs).isDirectory()
-                    ? targetAbs
-                    : dirname(targetAbs);
             const resolved = resolveRef((v as RefObject).$ref, baseDir);
-            result[k] = resolveRefs(resolved, refBaseDir);
+            // For OpenAPI sections that carry their own $refs, load the file but
+            // do not recurse — preserve nested $refs as-is.
+            if (OPENAPI_PASSTHROUGH_KEYS.has(k)) {
+                result[k] = resolved;
+            } else {
+                const [filePart] = (v as RefObject).$ref.split("#");
+                const targetAbs = resolve(baseDir, filePart);
+                const refBaseDir =
+                    existsSync(targetAbs) && statSync(targetAbs).isDirectory()
+                        ? targetAbs
+                        : dirname(targetAbs);
+                result[k] = resolveRefs(resolved, refBaseDir);
+            }
         } else {
             result[k] = resolveRefs(v, baseDir);
         }

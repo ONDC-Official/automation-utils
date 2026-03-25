@@ -97,7 +97,7 @@ export async function ingestBuild(db: Db, config: BuildConfig): Promise<IngestRe
         security: config.security,
         paths: config.paths,
         components: config.components as Record<string, unknown>,
-        errorCodes: config["x-errors-codes"].code,
+        errorCodes: config["x-errorcodes"].code,
         supportedActions: config["x-supported-actions"].supportedActions,
         apiProperties: config["x-supported-actions"].apiProperties,
         buildHash,

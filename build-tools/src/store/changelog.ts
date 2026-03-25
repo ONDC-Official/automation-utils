@@ -52,7 +52,7 @@ async function reconstructConfig(db: Db, meta: StoredBuildMeta): Promise<BuildCo
         security: meta.security,
         paths: meta.paths,
         components: meta.components,
-        "x-errors-codes": { code: meta.errorCodes },
+        "x-errorcodes": { code: meta.errorCodes },
         "x-supported-actions": {
             supportedActions: meta.supportedActions,
             apiProperties: meta.apiProperties,
@@ -71,9 +71,7 @@ async function reconstructConfig(db: Db, meta: StoredBuildMeta): Promise<BuildCo
         })),
         "x-validations": validations?.validations,
         ...(docs.length > 0 && {
-            "x-docs": Object.fromEntries(
-                docs.map((d) => [d.slug as string, d.content as string]),
-            ),
+            "x-docs": Object.fromEntries(docs.map((d) => [d.slug as string, d.content as string])),
         }),
     } as BuildConfig;
 }

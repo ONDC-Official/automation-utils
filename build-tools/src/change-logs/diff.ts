@@ -375,8 +375,8 @@ export function diffAttributes(oldC: BuildConfig, newC: BuildConfig): ChangeSect
 export function diffErrors(oldC: BuildConfig, newC: BuildConfig): ChangeSection | null {
     const entries: ChangeEntry[] = [];
     const toKey = (e: { code: string | number }) => String(e.code);
-    const oldMap = new Map(oldC["x-errors-codes"].code.map((e) => [toKey(e), e]));
-    const newMap = new Map(newC["x-errors-codes"].code.map((e) => [toKey(e), e]));
+    const oldMap = new Map(oldC["x-errorcodes"].code.map((e) => [toKey(e), e]));
+    const newMap = new Map(newC["x-errorcodes"].code.map((e) => [toKey(e), e]));
 
     for (const [code, entry] of newMap) {
         if (!oldMap.has(code)) {

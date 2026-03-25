@@ -212,7 +212,7 @@ export const BuildConfig = z.object({
     components: z.any(),
     "x-attributes": z.array(AttributeSetZ),
     "x-validations": z.unknown(),
-    "x-errors-codes": ErrorCodesZ,
+    "x-errorcodes": ErrorCodesZ,
     "x-supported-actions": SupportedActionsZ,
     // x-flows resolves via $ref: ./flows/index.yaml#/flows — the array directly
     "x-flows": z.array(FlowEntryZ),
