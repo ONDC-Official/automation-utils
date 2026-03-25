@@ -3,20 +3,11 @@ import { resolve } from "path";
 import { Command } from "commander";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
-import { BuildConfig } from "../types/build-type.js";
+import { AttributeNodeZ, BuildConfig } from "../types/build-type.js";
 import { runValidationPipeline } from "../validations/pipeline.js";
 
 export interface ValidateOptions {
     input: string;
-}
-
-function formatZodError(err: z.ZodError): string {
-    return err.issues
-        .map((issue) => {
-            const path = issue.path.length > 0 ? issue.path.join(".") : "(root)";
-            return `  • ${path}: ${issue.message}`;
-        })
-        .join("\n");
 }
 
 export function createValidateCommand(): Command {
@@ -26,11 +17,13 @@ export function createValidateCommand(): Command {
         .action((opts: ValidateOptions) => {
             const filePath = resolve(opts.input);
 
+            console.log(`\n  Validating: ${filePath}\n`);
+
             let raw: string;
             try {
                 raw = readFileSync(filePath, "utf-8");
             } catch {
-                console.error(`\n  error: cannot read file: ${filePath}\n`);
+                console.error(`  ✗ Cannot read file: ${filePath}\n`);
                 process.exit(1);
             }
 
@@ -39,7 +32,8 @@ export function createValidateCommand(): Command {
                 doc = parseYaml(raw);
             } catch (err) {
                 const msg = err instanceof Error ? err.message : String(err);
-                console.error(`\n  error: YAML parse failed: ${msg}\n`);
+                console.error(`  ✗ YAML parse error\n`);
+                console.error(`    ${msg}\n`);
                 process.exit(1);
             }
 
@@ -47,32 +41,37 @@ export function createValidateCommand(): Command {
             const schemaResult = BuildConfig.safeParse(doc);
 
             if (!schemaResult.success) {
-                console.error(`\n  ✗ Schema validation failed for: ${filePath}`);
-                console.error(`\n  ${schemaResult.error.issues.length} issue(s) found:\n`);
-                console.error(formatZodError(schemaResult.error));
+                console.error(
+                    `  ✗ Schema validation failed — ${schemaResult.error.issues.length} issue(s):\n`,
+                );
+                for (const issue of schemaResult.error.issues) {
+                    const path = issue.path.join(".") || "(root)";
+                    console.error(`    • ${path}: ${issue.message}`);
+                }
                 console.error();
                 process.exit(1);
             }
 
-            console.log(`\n  ✓ Schema valid`);
+            console.log(`  ✓ Schema valid\n`);
 
             // ── Step 2: semantic validation pipeline ─────────────────────────
-            const report = runValidationPipeline(schemaResult.data);
+            const report = runValidationPipeline(schemaResult.data as any);
 
             for (const name of report.passed) {
                 console.log(`  ✓ ${name}`);
             }
 
             if (report.failed.length === 0) {
-                console.log(`\n  All checks passed for: ${filePath}\n`);
+                console.log(`\n  All checks passed.\n`);
                 process.exit(0);
             }
 
             console.error(`\n  ✗ ${report.failed.length} check(s) failed:\n`);
             for (const check of report.failed) {
-                console.error(`  [${check.name}] ${check.description}`);
+                console.error(`  ✗ ${check.name}`);
+                if (check.description) console.error(`    ${check.description}`);
                 for (const issue of check.issues) {
-                    console.error(`    • ${issue.path}: ${issue.message}`);
+                    console.error(`      • ${issue.path}: ${issue.message}`);
                 }
                 console.error();
             }

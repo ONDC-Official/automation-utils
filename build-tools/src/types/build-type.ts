@@ -114,10 +114,10 @@ interface AttributeTagEntry {
 const AttributeLeafZ: z.ZodType<AttributeLeaf> = z.lazy(() =>
     z.object({
         required: z.boolean(),
-        usage: z.string(),
-        info: z.string(),
-        owner: z.string(),
-        type: z.string(),
+        usage: z.coerce.string().catch("-"),
+        info: z.coerce.string().catch("no information provided"),
+        owner: z.coerce.string().catch("unknown"),
+        type: z.coerce.string().catch("unknown"),
         enums: z.array(EnumEntryZ).optional(),
         enumrefs: z.array(z.object({ label: z.string(), href: z.string() })).optional(),
         tags: z.array(AttributeTagEntryZ).optional(),
@@ -139,10 +139,28 @@ const AttributeTagEntryZ: z.ZodType<AttributeTagEntry> = z.lazy(() =>
     }),
 );
 
-// Attribute nodes are recursive: a map of keys, where leaf nodes
-// hold a `_description` key with an AttributeLeaf
-const AttributeNodeZ: z.ZodType<unknown> = z.lazy(() =>
-    z.record(z.string(), z.union([AttributeNodeZ, AttributeLeafZ, z.undefined()])),
+const AttributeValueZ: z.ZodType<unknown> = z.lazy(() =>
+    z
+        .custom<unknown>((val) => typeof val === "object" && val !== null, {
+            message: "Expected object",
+        })
+        .superRefine((val, ctx) => {
+            const isLeaf = "required" in (val as any);
+            const result = isLeaf ? AttributeLeafZ.safeParse(val) : AttributeNodeZ.safeParse(val);
+
+            if (!result.success) {
+                for (const issue of result.error.issues) {
+                    ctx.addIssue({
+                        ...issue,
+                        path: [...(issue.path ?? [])],
+                    });
+                }
+            }
+        }),
+);
+
+export const AttributeNodeZ: z.ZodType<unknown> = z.lazy(() =>
+    z.record(z.string(), AttributeValueZ),
 );
 
 const AttributeSetZ = z.object({
@@ -155,10 +173,10 @@ const AttributeSetZ = z.object({
 const ErrorCodesZ = z.object({
     code: z.array(
         z.object({
-            Event: z.string(),
-            Description: z.string(),
-            From: z.string(),
-            code: z.union([z.string(), z.number()]),
+            Event: z.string().default("no event specified"),
+            Description: z.string().default("no description provided"),
+            From: z.string().default("no source specified"),
+            code: z.union([z.string(), z.number()]).default("-1"),
         }),
     ),
 });
