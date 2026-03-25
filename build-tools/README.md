@@ -253,6 +253,9 @@ const result = await ingestBuild(db, config);
 npm run dev          # Run CLI with tsx (no build needed)
 npm run build        # Compile TypeScript -> dist/
 npm run typecheck    # Type-check without emitting
+npm test             # Run all tests (Jest)
+npm run test:watch   # Run tests in watch mode
+npm run test:coverage # Run tests with coverage report
 npm run format       # Format with Prettier
 npm run format:check # Check formatting (CI-safe)
 ```
@@ -290,4 +293,19 @@ src/
 │   └── ingest.ts                   # ingestBuild() — main ingestion function
 └── errors/
     └── NotImplementedError.ts
+
+tests/
+├── fixtures.ts                     # Shared BuildConfig factory + helpers
+├── types/
+│   └── build-type.test.ts          # Zod schema validation tests
+├── change-logs/
+│   └── diff.test.ts                # All 6 diff functions + truncation
+├── store/
+│   ├── mock-db.ts                  # In-memory MongoDB mock
+│   ├── collections.test.ts         # Index creation tests
+│   ├── changelog.test.ts           # diffChangelog tests
+│   └── ingest.test.ts              # ingestBuild full lifecycle tests
+└── validations/
+    ├── validate-usecases.test.ts   # Usecase ID validation tests
+    └── pipeline.test.ts            # Validation pipeline tests
 ```
