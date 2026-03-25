@@ -1,6 +1,6 @@
 {
     "name": "@ondc/build-tools",
-    "version": "1.1.0",
+    "version": "0.0.0",
     "description": "ONDC build toolchain — CLI for pipeline ops + library for MongoDB ingestion",
     "type": "module",
     "main": "./dist/lib.js",
@@ -30,7 +30,12 @@
         "test:watch": "NODE_OPTIONS='--experimental-vm-modules' jest --watch",
         "test:coverage": "NODE_OPTIONS='--experimental-vm-modules' jest --coverage",
         "format": "prettier --write \"src/**/*.ts\"",
-        "format:check": "prettier --check \"src/**/*.ts\""
+        "format:check": "prettier --check \"src/**/*.ts\"",
+        "prepublishOnly": "npm run test && npm run build",
+        "prepare": "npm run build",
+        "release:patch": "npm version patch && npm publish",
+        "release:minor": "npm version minor && npm publish",
+        "release:major": "npm version major && npm publish"
     },
     "keywords": [
         "ondc",
