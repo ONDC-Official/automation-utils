@@ -4,9 +4,38 @@ Converts ONDC OpenAPI YAML files from the **old format** (separate `x-enum`, `x-
 
 ---
 
-## Scripts
+## CLI Commands
 
 ### Convert a build YAML
+
+```bash
+npx tsx index.ts convert
+```
+
+```bash
+# Custom input/output paths
+npx tsx index.ts convert -i config/build.yaml -o config/output.yaml
+```
+
+### Fetch flows
+
+```bash
+npx tsx index.ts flows
+```
+
+### Help
+
+```bash
+npx tsx index.ts --help
+npx tsx index.ts convert --help
+npx tsx index.ts flows --help
+```
+
+---
+
+## Scripts
+
+### Convert a build YAML (legacy)
 
 ```bash
 npm run dev
@@ -55,14 +84,15 @@ npm run kb config/another-domain.yaml knowledgebase.json
 
 #### Key format
 
-| Part | Source |
-|---|---|
-| `domain` | `info.domain` (falls back to `info.title`) |
-| `version` | `info.version` |
-| `action` | key inside `attribute_set` (e.g. `search`, `on_search`) |
-| `attribute.path` | dot-joined path to the `_description` leaf |
+| Part             | Source                                                  |
+| ---------------- | ------------------------------------------------------- |
+| `domain`         | `info.domain` (falls back to `info.title`)              |
+| `version`        | `info.version`                                          |
+| `action`         | key inside `attribute_set` (e.g. `search`, `on_search`) |
+| `attribute.path` | dot-joined path to the `_description` leaf              |
 
 Example key:
+
 ```
 ONDC:FIS12.2.3.0.search.context.location.country.code
 ```

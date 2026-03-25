@@ -1,0 +1,27 @@
+openapi: 3.0.0
+info:
+    title: ONDC Specification
+    domain: ONDC:FIS10
+    description: ONDC Specification
+    version: 2.1.0
+    usecases: ["gift-card", "loyalty", "voucher"]
+    branch-name: "draft-FIS10-GIFTCARD-2.1.0"
+    reporting: true
+security:
+    - SubscriberAuth: []
+paths:
+    $ref: ./specs/openapi.yaml -> paths
+components:
+    $ref: ./specs/openapi.yaml -> components
+x-attributes:
+    $ref: ./attributes/index.yaml
+x-validations:
+    $ref: ./validations/index.yaml
+x-errors-codes:
+    $ref: ./errors/index.yaml
+x-supported-actions:
+    $ref: ./actions/index.yaml
+x-flows:
+    $ref: ./flows/index.yaml
+x-docs:
+    $ref: ./docs

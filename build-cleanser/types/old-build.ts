@@ -49,6 +49,20 @@ export interface OldAttributes {
           }
         | undefined;
 }
+export type OldFlow = {
+    summary: string;
+    description?: string;
+    details: {
+        description?: string;
+        mermaidGraph?: string;
+    }[];
+    steps: {
+        summary: string;
+        api: string;
+    }[];
+};
+
+export type OldFlows = OldFlow[];
 
 export interface OldBuildType {
     openapi: string;
@@ -73,4 +87,5 @@ export interface OldBuildType {
     "x-enum"?: OldEnums;
     "x-tags"?: OldTags;
     "x-attributes"?: OldAttributes;
+    "x-flows"?: OldFlows;
 }

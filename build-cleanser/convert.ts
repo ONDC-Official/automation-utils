@@ -1,9 +1,11 @@
 import { readFileSync, writeFileSync } from "fs";
 import { parse, stringify } from "yaml";
-import { attributeConverter } from "./services/attributeConverted.js";
+import { attributeConverter } from "./services/attributeConverter.js";
 import { loadKnowledgeLookup } from "./services/knowledgebase.js";
 import type { OldBuildType } from "./types/old-build.js";
 import type { NewAttributes, NewBuildType } from "./types/new-build.js";
+import { flowConverter } from "./services/flow-converter.js";
+import { fetchSupportedActionsForDomainVersion } from "./utils/config-service.js";
 
 const KB_PATH = "knowledgebase.json";
 
@@ -13,11 +15,11 @@ function read(filePath: string): string {
     return readFileSync(filePath, "utf-8");
 }
 
-function parseYaml(raw: string): OldBuildType {
+export function parseYaml(raw: string): OldBuildType {
     return parse(raw) as OldBuildType;
 }
 
-function transform(doc: OldBuildType): NewBuildType {
+async function transform(doc: OldBuildType): Promise<NewBuildType> {
     const xAttributes = doc["x-attributes"];
     const xTags = doc["x-tags"] ?? {};
     const xEnums = doc["x-enum"] ?? {};
@@ -35,7 +37,18 @@ function transform(doc: OldBuildType): NewBuildType {
           )
         : undefined;
 
-    return {
+    const xflows = await flowConverter(
+        doc["x-flows"] ?? [],
+        doc.info.domain ?? "unknown-domain",
+        doc.info.version,
+    );
+
+    const getSupportedActions = await fetchSupportedActionsForDomainVersion(
+        doc.info.domain ?? "unknown-domain",
+        doc.info.version,
+    );
+
+    const data: NewBuildType = {
         openapi: doc.openapi,
         info: doc.info,
         ...(doc.security !== undefined && { security: doc.security }),
@@ -49,6 +62,9 @@ function transform(doc: OldBuildType): NewBuildType {
             "x-errorcodes": doc["x-errorcodes"],
         }),
     };
+    data["x-flows"] = xflows;
+    data["x-supported-actions"] = getSupportedActions;
+    return data;
 }
 
 function serializeYaml(doc: NewBuildType): string {
@@ -65,7 +81,10 @@ function write(filePath: string, content: string): void {
 
 // ─── Pipeline ───────────────────────────────────────────────────────────────
 
-export function convert(inputPath: string, outputPath: string): void {
+export async function convert(
+    inputPath: string,
+    outputPath: string,
+): Promise<void> {
     console.log(`Reading:    ${inputPath}`);
     const raw = read(inputPath);
 
@@ -73,7 +92,7 @@ export function convert(inputPath: string, outputPath: string): void {
     const doc = parseYaml(raw);
 
     console.log("Transforming...");
-    const transformed = transform(doc);
+    const transformed = await transform(doc);
 
     console.log("Serializing...");
     const output = serializeYaml(transformed);

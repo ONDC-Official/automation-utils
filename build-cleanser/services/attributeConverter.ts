@@ -36,14 +36,22 @@ function isOldLeaf(v: unknown): v is OldAttributeEntry {
 
 // ─── Helper: normalise "mandatory"/"Required"/etc. to boolean ────────────────
 function parseRequired(val: string | undefined): boolean {
-    if (!val) return false;
-    const lower = val.toLowerCase().trim();
-    return (
-        lower !== "optional" &&
-        lower !== "no" &&
-        lower !== "false" &&
-        lower !== "not required"
-    );
+    try {
+        if (!val) return false;
+        if (val === "true") return true; // allow explicit "true" for clarity in build.yaml
+        const lower = val.toLowerCase().trim();
+        return (
+            lower !== "optional" &&
+            lower !== "no" &&
+            lower !== "false" &&
+            lower !== "not required"
+        );
+    } catch (e) {
+        console.warn(
+            `Warning: failed to parse required value "${val}", defaulting to false.`,
+        );
+        return false;
+    }
 }
 
 // ─── Helper: build a NewAttributeLeaf from old data + merged enum/tag info ───

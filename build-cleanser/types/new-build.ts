@@ -204,4 +204,5 @@ export interface NewBuildType {
             code: string;
         }[];
     };
+    "x-supported-actions"?: any[];
 }

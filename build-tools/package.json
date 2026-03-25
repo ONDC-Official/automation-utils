@@ -1,0 +1,37 @@
+{
+    "name": "@ondc/build-tools",
+    "version": "1.0.0",
+    "description": "ONDC build toolchain CLI — merge, validate, push-s3, make-onix",
+    "type": "module",
+    "main": "./dist/index.js",
+    "bin": {
+        "ondc-tools": "./dist/index.js"
+    },
+    "files": [
+        "dist"
+    ],
+    "scripts": {
+        "dev": "tsx src/index.ts",
+        "build": "tsc",
+        "start": "node dist/index.js",
+        "typecheck": "tsc --noEmit"
+    },
+    "keywords": [
+        "ondc",
+        "build",
+        "cli"
+    ],
+    "author": "",
+    "license": "ISC",
+    "dependencies": {
+        "commander": "^14.0.3"
+    },
+    "devDependencies": {
+        "@types/node": "^22.0.0",
+        "tsx": "^4.19.0",
+        "typescript": "6.0.2"
+    },
+    "engines": {
+        "node": ">=20.0.0"
+    }
+}
