@@ -122,9 +122,8 @@ ${version}/
     ├── specs/
     │   └── openapi.yaml        ← Full OpenAPI spec: openapi, info, security, paths, components
     ├── flows/
-    │   ├── index.yaml              ← $ref list pointing to each <UseCase>/index.yaml
+    │   ├── index.yaml              ← Flat playground manifest: all flows across all use cases
     │   └── <UseCase>/
-    │       ├── index.yaml          ← Playground manifest: id, tags, description, config.$ref
     │       └── <FlowId>.yaml       ← Individual transaction flow definition
     ├── attributes/
     │   ├── index.yaml          ← List of $ref entries pointing to each attribute file
@@ -146,21 +145,22 @@ Top-level manifest that mimics the build.yaml structure but replaces inline cont
 
 | Field | Type | Description |
 |-------|------|-------------|
-| \`openapi\` | string | OpenAPI version (e.g. \`"3.0.0"\`) |
-| \`info.title\` | string | Human-readable title |
+| \`openapi\` | string | OpenAPI version — matches \`/^3\\.\\d+\\.\\d+$/\` |
+| \`info.title\` | string? | Human-readable title |
 | \`info.domain\` | string | ONDC domain identifier (e.g. \`${domain}\`) |
-| \`info.description\` | string | Domain description |
+| \`info.description\` | string? | Domain description |
 | \`info.version\` | string | Spec version (e.g. \`${version}\`) |
-| \`info.usecases\` | string[] | List of supported use case IDs |
-| \`info.branch-name\` | string | Source git branch name |
-| \`security\` | array | Security scheme references |
+| \`info.x-usecases\` | string[] | List of supported use case IDs |
+| \`info.x-branch-name\` | string? | Source git branch name |
+| \`info.x-reporting\` | boolean | Whether this domain/version is enabled for reporting |
+| \`security\` | Record<string, string[]>[]? | Security scheme references |
 | \`paths\` | \`{$ref: ./specs/openapi.yaml#/paths}\` | Reference to paths section in OpenAPI spec |
 | \`components\` | \`{$ref: ./specs/openapi.yaml#/components}\` | Reference to components in OpenAPI spec |
 | \`x-attributes\` | \`{$ref: ./attributes/index.yaml}\` | Reference to attribute definitions |
 | \`x-validations\` | \`{$ref: ./validations/index.yaml}\` | Reference to validation rules |
 | \`x-errors-codes\` | \`{$ref: ./errors/index.yaml}\` | Reference to error codes |
 | \`x-supported-actions\` | \`{$ref: ./actions/index.yaml}\` | Reference to supported actions |
-| \`x-flows\` | \`{$ref: ./flows/index.yaml}\` | Reference to flow definitions |
+| \`x-flows\` | \`{$ref: ./flows/index.yaml#/flows}\` | Reference to flat flow list |
 | \`x-docs\` | \`{$ref: ./docs}\` | Reference to extra documentation |
 
 ---
@@ -171,46 +171,29 @@ Complete OpenAPI 3.0 specification containing all API paths and component schema
 ---
 
 ### \`config/flows/index.yaml\`
-An ordered list of \`$ref\` entries, each pointing to a use-case sub-folder's index:
-\`\`\`yaml
-- $ref: ./<UseCase>/index.yaml
-\`\`\`
-
-### \`config/flows/<UseCase>/index.yaml\`
-Playground manifest listing all flows for this use case:
+Flat playground manifest listing **all flows across all use cases**:
 \`\`\`yaml
 flows:
   - type: playground
     id: <FlowId>
+    usecase: <UseCaseId>
     tags: ["WORKBENCH", "PRAMAAN", "MANDATORY", "REPORTABLE"]
     description: <description from outputs flow.json>
     config:
-      $ref: ./<FlowId>.yaml
+      $ref: ./<UseCase>/<FlowId>.yaml
 \`\`\`
 
 | Field | Type | Description |
 |-------|------|-------------|
-| \`type\` | string | Always \`playground\` |
-| \`id\` | string | Flow identifier (matches file name) |
-| \`tags\` | string[] | Labels from \`outputs/<domain>/<version>/<usecase>/<flowId>/flow.json\` |
-| \`description\` | string | Description from \`flow.json\` |
-| \`config.$ref\` | string | Relative path to the flow yaml |
+| \`type\` | \`"playground"\` | Literal — always \`playground\` |
+| \`id\` | string | Flow identifier |
+| \`usecase\` | string | Use case this flow belongs to (matches subfolder name) |
+| \`tags\` | string[] | Labels sourced from \`outputs/<domain>/<version>/<usecase>/<flowId>/flow.json\` |
+| \`description\` | string | Description sourced from \`flow.json\` |
+| \`config\` | object | Flow config — see [automation-mock-runner](https://github.com/ONDC-Official/automation-mock-runner-lib) for schema |
 
 ### \`config/flows/<UseCase>/<FlowId>.yaml\`
-Full transaction flow data extracted from \`x-flows\` in \`build.yaml\`. Key fields:
-
-| Field | Type | Description |
-|-------|------|-------------|
-| \`meta.flowId\` | string | Unique flow identifier |
-| \`meta.flowName\` | string | Human-readable flow name |
-| \`meta.domain\` | string | Domain this flow belongs to |
-| \`meta.description\` | string | Flow description |
-| \`meta.use_case_id\` | string | Use case this flow is part of |
-| \`steps\` | array | Ordered list of API call steps |
-| \`steps[].api\` | string | API action (e.g. \`search\`, \`on_search\`) |
-| \`steps[].owner\` | string | Who sends this call (\`BAP\` or \`BPP\`) |
-| \`steps[].mock\` | object | Generate/validate functions + default payload |
-| \`steps[].examples\` | array | Example payloads for this step |
+Individual flow config file. Schema defined by \`MockPlaygroundConfigSchema\` from [@ondc/automation-mock-runner](https://github.com/ONDC-Official/automation-mock-runner-lib).
 
 ---
 
@@ -226,32 +209,30 @@ Attribute definitions for a specific use case:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| \`meta.use_case_id\` | string | Use case identifier |
-| \`attribute_set\` | object | Keyed by action name (e.g. \`search\`, \`on_search\`) |
+| \`meta.use_case_id\` | string? | Use case identifier |
+| \`attribute_set\` | object? | Keyed by action name (e.g. \`search\`, \`on_search\`) |
 | \`attribute_set.<action>.<path>._description\` | object | Leaf attribute descriptor |
 | \`._description.required\` | boolean | Whether the attribute is required |
 | \`._description.usage\` | string | Example value |
 | \`._description.info\` | string | Description of the attribute |
 | \`._description.owner\` | string | Who sets this field (\`BAP\`/\`BPP\`) |
 | \`._description.type\` | string | Data type |
-| \`._description.enums\` | array | Allowed enum values (if applicable) |
+| \`._description.enums\` | \`{code, description, reference}[]\`? | Allowed enum values |
+| \`._description.enumrefs\` | \`{label, href}[]\`? | External references for enum values |
+| \`._description.tags\` | \`AttributeTagEntry[]\`? | Nested tag group descriptors |
+
+**\`AttributeTagEntry\`**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| \`code\` | string | Tag group code (e.g. \`BAP_TERMS\`) |
+| \`_description\` | AttributeLeaf | Descriptor for the tag group itself |
+| \`list\` | \`{code: string, _description: AttributeLeaf}[]\`? | Individual tag items within the group |
 
 ---
 
 ### \`config/validations/index.yaml\`
-Validation rules keyed by action name. Each action holds an array of test groups.
-
-| Field | Type | Description |
-|-------|------|-------------|
-| \`_TESTS_.<action>\` | array | List of test groups for an action |
-| \`[].\_NAME_\` | string | Test group identifier |
-| \`[].\_DESCRIPTION_\` | string | Human-readable description |
-| \`[].\_RETURN_\` | array | Nested list of individual validation rules |
-| \`rule.attr\` | string | JSONPath to the field being validated |
-| \`rule.reg\` | string[] | Regex patterns the value must match |
-| \`rule.valid\` | string[] | Exact allowed values |
-| \`rule.\_CONTINUE_\` | string | Condition to skip this rule |
-| \`rule.\_RETURN_\` | string | Assertion message |
+See schema documentation: [automation-validation-compiler README](https://github.com/ONDC-Official/automation-validation-compiler/blob/package/README.md)
 
 ---
 
@@ -261,7 +242,7 @@ Error codes for this domain:
 | Field | Type | Description |
 |-------|------|-------------|
 | \`code\` | array | List of error code objects |
-| \`code[].code\` | string | Numeric error code |
+| \`code[].code\` | string \\| number | Numeric error code |
 | \`code[].Event\` | string | Human-readable event description |
 | \`code[].From\` | string | Who raises this error (\`BAP\`/\`BPP\`) |
 | \`code[].Description\` | string | Where/how the error is used |
@@ -323,9 +304,9 @@ async function processBuildYaml(
             domain,
             description: info?.description ?? "",
             version,
-            ...(usecases.length > 0 ? { usecases } : {}),
-            ...(branchName ? { "branch-name": branchName } : {}),
-            reporting,
+            ...(usecases.length > 0 ? { "x-usecases": usecases } : {}),
+            ...(branchName ? { "x-branch-name": branchName } : {}),
+            ...(reporting ? { "x-reporting": reporting } : {}),
         },
         security: doc["security"] ?? [],
         paths: { $ref: "./specs/openapi.yaml#/paths" },
@@ -334,7 +315,7 @@ async function processBuildYaml(
         "x-validations": { $ref: "./validations/index.yaml" },
         "x-errors-codes": { $ref: "./errors/index.yaml" },
         "x-supported-actions": { $ref: "./actions/index.yaml" },
-        "x-flows": { $ref: "./flows/index.yaml" },
+        "x-flows": { $ref: "./flows/index.yaml#/flows" },
         "x-docs": { $ref: "./docs" },
     };
     writeFileSync(join(outBase, "index.yaml"), stringifyYaml(indexContent));
@@ -353,7 +334,7 @@ async function processBuildYaml(
         stringifyYaml(specContent),
     );
 
-    // --- flows/<usecase>/<flowId>.yaml + flows/<usecase>/index.yaml + flows/index.yaml ---
+    // --- flows/<usecase>/<flowId>.yaml + flows/index.yaml (flat) ---
     const flows = doc["x-flows"] as Array<Record<string, unknown>> | undefined;
     if (flows && flows.length > 0) {
         ensureDir(join(outBase, "flows"));
@@ -382,39 +363,31 @@ async function processBuildYaml(
             });
         }
 
-        // Top-level flows/index.yaml: $ref to each usecase/index.yaml
-        const usecaseRefs: Array<Record<string, string>> = [];
+        // Write each flow yaml into flows/<usecase>/<flowId>.yaml
+        // Collect all entries into one flat array for flows/index.yaml
+        const allPlaygroundEntries: Array<Record<string, unknown>> = [];
         for (const [usecase, usecaseFlows] of byUseCase) {
             const usecaseDir = join(outBase, "flows", usecase);
             ensureDir(usecaseDir);
 
-            // Write each flow yaml under flows/<usecase>/<flowId>.yaml
-            const playgroundEntries: Array<Record<string, unknown>> = [];
             for (const { flowId, fileName, flow } of usecaseFlows) {
                 writeFileSync(join(usecaseDir, fileName), stringifyYaml(flow));
                 const meta = readFlowMeta(domain, version, usecase, flowId);
-                playgroundEntries.push({
+                allPlaygroundEntries.push({
                     type: "playground",
                     id: flowId,
+                    usecase,
                     tags: meta.tags,
                     description: meta.description,
-                    config: { $ref: `./${fileName}` },
+                    config: { $ref: `./${usecase}/${fileName}` },
                 });
             }
-
-            // Write flows/<usecase>/index.yaml
-            writeFileSync(
-                join(usecaseDir, "index.yaml"),
-                stringifyYaml({ flows: playgroundEntries }),
-            );
-
-            usecaseRefs.push({ $ref: `./${usecase}/index.yaml` });
         }
 
-        // Write flows/index.yaml
+        // Write flows/index.yaml — flat array of all flows across all usecases
         writeFileSync(
             join(outBase, "flows", "index.yaml"),
-            stringifyYaml(usecaseRefs),
+            stringifyYaml({ flows: allPlaygroundEntries }),
         );
     }
 
@@ -468,6 +441,28 @@ async function processBuildYaml(
         );
     }
 
+    // --- docs/: basic template markdown files ---
+    const docsDir = join(outBase, "docs");
+    ensureDir(docsDir);
+    if (!existsSync(join(docsDir, "overview.md"))) {
+        writeFileSync(
+            join(docsDir, "overview.md"),
+            `# ${domain} ${version} — Overview\n\nAdd an overview of the ${domain} ${version} specification here.\n`,
+        );
+    }
+    if (!existsSync(join(docsDir, "release-notes.md"))) {
+        writeFileSync(
+            join(docsDir, "release-notes.md"),
+            `# ${domain} ${version} — Release Notes\n\nList notable changes in this version.\n`,
+        );
+    }
+    if (!existsSync(join(docsDir, "references.md"))) {
+        writeFileSync(
+            join(docsDir, "references.md"),
+            `# ${domain} ${version} — References\n\nAdd links and references here.\n`,
+        );
+    }
+
     // --- README.md beside config/ ---
     writeFileSync(
         join(versionBase, "README.md"),
@@ -507,7 +502,6 @@ export async function formatAllBuilds(): Promise<void> {
             }
             try {
                 await processBuildYaml(buildYamlPath, domain, version);
-                return; // TEMP: process only the first one for testing
             } catch (err) {
                 console.error(`  Error processing ${domain}/${version}:`, err);
             }

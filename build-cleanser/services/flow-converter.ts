@@ -81,7 +81,12 @@ export async function flowConverter(
                         (payload: any) => payload.context?.action === action,
                     );
                     if (matchIndex !== -1) {
-                        step.examples.push(deepClonedPayloads[matchIndex]);
+                        step.examples.push({
+                            name: `Example for action "${action}"`,
+                            description: `Auto-generated example for action "${action}" in flow "${flowId}"`,
+                            payload: deepClonedPayloads[matchIndex],
+                            type: "request",
+                        });
                         deepClonedPayloads.splice(matchIndex, 1);
                     } else {
                         console.warn(

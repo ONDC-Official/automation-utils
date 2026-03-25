@@ -66,19 +66,22 @@ export const getPayloads = async (
             return true;
         });
 
+        const groupsToUse = validGroups.length
+            ? validGroups
+            : Object.values(grouped);
+
         if (!validGroups.length) {
             console.warn(
-                `[getPayloads] No valid transaction groups found after filtering`,
+                `[getPayloads] No valid transaction groups found after filtering, falling back to all ${groupsToUse.length} group(s)`,
             );
-            return null;
+        } else {
+            console.log(
+                `[getPayloads] Found ${validGroups.length} valid transaction group(s)`,
+            );
         }
 
-        console.log(
-            `[getPayloads] Found ${validGroups.length} valid transaction group(s)`,
-        );
-
         // Return each group ordered by the actions array
-        return validGroups.map((group) =>
+        return groupsToUse.map((group) =>
             actions.map((action) => group.find((p) => p.action === action)),
         );
     } catch (err) {
