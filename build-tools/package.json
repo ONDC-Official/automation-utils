@@ -1,9 +1,20 @@
 {
     "name": "@ondc/build-tools",
-    "version": "1.0.0",
-    "description": "ONDC build toolchain CLI — merge, validate, push-s3, make-onix",
+    "version": "1.1.0",
+    "description": "ONDC build toolchain — CLI for pipeline ops + library for MongoDB ingestion",
     "type": "module",
-    "main": "./dist/index.js",
+    "main": "./dist/lib.js",
+    "types": "./dist/lib.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/lib.d.ts",
+            "default": "./dist/lib.js"
+        },
+        "./store": {
+            "types": "./dist/store/index.d.ts",
+            "default": "./dist/store/index.js"
+        }
+    },
     "bin": {
         "ondc-tools": "./dist/index.js"
     },
@@ -14,20 +25,39 @@
         "dev": "tsx src/index.ts",
         "build": "tsc",
         "start": "node dist/index.js",
-        "typecheck": "tsc --noEmit"
+        "typecheck": "tsc --noEmit",
+        "format": "prettier --write \"src/**/*.ts\"",
+        "format:check": "prettier --check \"src/**/*.ts\""
     },
     "keywords": [
         "ondc",
         "build",
-        "cli"
+        "cli",
+        "mongodb",
+        "ingestion"
     ],
     "author": "",
     "license": "ISC",
     "dependencies": {
-        "commander": "^14.0.3"
+        "@ondc/automation-mock-runner": "^1.3.27",
+        "commander": "^14.0.3",
+        "json-pointer": "^0.6.2",
+        "yaml": "^2.8.3",
+        "zod": "^4.3.6"
+    },
+    "peerDependencies": {
+        "mongodb": "^6.0.0"
+    },
+    "peerDependenciesMeta": {
+        "mongodb": {
+            "optional": true
+        }
     },
     "devDependencies": {
+        "@types/json-pointer": "^1.0.34",
         "@types/node": "^22.0.0",
+        "mongodb": "^6.21.0",
+        "prettier": "^3.8.1",
         "tsx": "^4.19.0",
         "typescript": "6.0.2"
     },

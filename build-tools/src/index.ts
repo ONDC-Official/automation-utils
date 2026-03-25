@@ -2,20 +2,15 @@
 import { Command } from "commander";
 import { createMergeCommand } from "./commands/merge.js";
 import { createValidateCommand } from "./commands/validate.js";
-import { createPushS3Command } from "./commands/push-s3.js";
 import { createMakeOnixCommand } from "./commands/make-onix.js";
 import { NotImplementedError } from "./errors/NotImplementedError.js";
 import { createGenChangeLogsCommand } from "./commands/gen-change-logs.js";
 const program = new Command();
 
-program
-    .name("ondc-tools")
-    .description("ONDC build toolchain CLI")
-    .version("1.0.0");
+program.name("ondc-tools").description("ONDC build toolchain CLI").version("1.0.0");
 
 program.addCommand(createMergeCommand());
 program.addCommand(createValidateCommand());
-program.addCommand(createPushS3Command());
 program.addCommand(createMakeOnixCommand());
 program.addCommand(createGenChangeLogsCommand());
 
