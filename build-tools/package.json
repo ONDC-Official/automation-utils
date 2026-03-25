@@ -46,6 +46,9 @@
     ],
     "author": "",
     "license": "ISC",
+    "publishConfig": {
+        "access": "public"
+    },
     "dependencies": {
         "@ondc/automation-mock-runner": "^1.3.27",
         "commander": "^14.0.3",
