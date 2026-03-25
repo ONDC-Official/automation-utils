@@ -42,8 +42,6 @@ export {
 
 // ─── Validation types ────────────────────────────────────────────────────────
 
-export type {
-    ValidationIssue,
-    ValidationResult,
-    ValidationCheck,
-} from "./validations/types.js";
+export type { ValidationIssue, ValidationResult, ValidationCheck } from "./validations/types.js";
+
+export * from "./store/index.js";
