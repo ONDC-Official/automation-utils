@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "additionalDirectories": [
+      "/Users/rudranshsinghal/ondc/new-dev-guide/build-tools/src/commands"
+    ],
+    "allow": [
+      "Bash(npm install:*)"
+    ]
+  }
+}
