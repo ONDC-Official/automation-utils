@@ -10,6 +10,10 @@ import {
     diffErrors,
     diffActions,
     diffPaths,
+    diffValidations,
+    diffDocs,
+    diffComponents,
+    diffSecurity,
 } from "../change-logs/diff.js";
 import type { ChangeLog, ChangeSection } from "../change-logs/types.js";
 
@@ -54,7 +58,7 @@ export function createGenChangeLogsCommand(): Command {
             const oldConfig = loadAndParse(resolve(opts.old), "old config");
             const newConfig = loadAndParse(resolve(opts.new), "new config");
 
-            // Run all section diffs
+            // Run all section diffs — includes new sections
             const rawSections: (ChangeSection | null)[] = [
                 diffInfo(oldConfig, newConfig),
                 diffFlows(oldConfig, newConfig),
@@ -62,6 +66,10 @@ export function createGenChangeLogsCommand(): Command {
                 diffErrors(oldConfig, newConfig),
                 diffActions(oldConfig, newConfig),
                 diffPaths(oldConfig, newConfig),
+                diffValidations(oldConfig, newConfig),
+                diffDocs(oldConfig, newConfig),
+                diffComponents(oldConfig, newConfig),
+                diffSecurity(oldConfig, newConfig),
             ];
 
             const sections = rawSections.filter((s): s is ChangeSection => s !== null);
@@ -91,7 +99,7 @@ export function createGenChangeLogsCommand(): Command {
                 sections,
             };
 
-            const date = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+            const date = new Date().toISOString();
             const domain = newConfig.info.domain.replace(/[^a-zA-Z0-9]/g, "-");
             const version = newConfig.info.version.replace(/[^a-zA-Z0-9.]/g, "-");
             const defaultName = `changelog_${domain}_${version}_${date}.json`;

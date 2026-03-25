@@ -209,11 +209,13 @@ export async function ingestBuild(db: Db, config: BuildConfig): Promise<IngestRe
 
     // ── Insert changelog ────────────────────────────────────────────────────
     if (changelog) {
-        await db.collection<StoredChangeLog>(COLLECTIONS.CHANGELOG).replaceOne(
-            { domain, fromVersion: changelog.fromVersion, toVersion: changelog.toVersion },
-            changelog,
-            { upsert: true },
-        );
+        await db
+            .collection<StoredChangeLog>(COLLECTIONS.CHANGELOG)
+            .replaceOne(
+                { domain, fromVersion: changelog.fromVersion, toVersion: changelog.toVersion },
+                changelog,
+                { upsert: true },
+            );
     }
 
     return {
