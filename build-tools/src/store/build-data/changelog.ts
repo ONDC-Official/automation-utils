@@ -7,8 +7,8 @@
  */
 
 import type { Db } from "mongodb";
-import type { BuildConfig } from "../types/build-type.js";
-import type { ChangeSection } from "../change-logs/types.js";
+import type { BuildConfig } from "../../types/build-type.js";
+import type { ChangeSection } from "../../change-logs/types.js";
 import {
     diffInfo,
     diffFlows,
@@ -16,7 +16,7 @@ import {
     diffErrors,
     diffActions,
     diffPaths,
-} from "../change-logs/diff.js";
+} from "../../change-logs/diff.js";
 import { COLLECTIONS } from "./collections.js";
 import type { StoredBuildMeta, StoredChangeLog } from "./schemas.js";
 

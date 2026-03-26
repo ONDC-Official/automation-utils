@@ -17,8 +17,7 @@
 
 import { createHash } from "node:crypto";
 import type { Db } from "mongodb";
-import type { BuildConfig } from "../types/build-type.js";
-import { COLLECTIONS } from "./collections.js";
+
 import type {
     StoredBuildMeta,
     StoredBuildDoc,
@@ -27,7 +26,7 @@ import type {
     StoredBuildValidation,
     StoredChangeLog,
 } from "./schemas.js";
-import { diffChangelog } from "./changelog.js";
+import { BuildConfig, COLLECTIONS, diffChangelog } from "../../lib.js";
 
 // ─── Result types ────────────────────────────────────────────────────────────
 

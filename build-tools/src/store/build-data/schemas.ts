@@ -7,7 +7,7 @@
  * docs, etc.) without loading the entire build.
  */
 
-import type { ChangeLog } from "../change-logs/types.js";
+import { ChangeLog } from "../../lib.js";
 
 // ─── Common ──────────────────────────────────────────────────────────────────
 
