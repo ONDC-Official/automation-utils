@@ -1,0 +1,49 @@
+name: Spec Workflow
+
+on:
+  push:
+    branches: [ "main", "draft-*" ]
+    paths:
+      - 'config/**'
+  workflow_dispatch:
+
+jobs:
+  process-spec:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Parse config
+        id: parse
+        run: |
+          npx -y @ondc/build-tools@latest parse -i config -o build.yaml
+
+      - name: Upload parsed build.yaml artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifact
+          path: build.yaml
+          retention-days: 7
+
+      - name: Validate build.yaml
+        run: |
+          npx -y @ondc/build-tools@latest validate -i build.yaml
+
+      - name: Generate RAG Table
+        run: |
+          npx -y @ondc/build-tools@latest gen-rag-table -i build.yaml -o generated
+
+      - name: Push to DB
+        # Only deploy/push on pushes to main or manual dispatch, not on PRs (optional precaution)
+        if: github.event_name != 'pull_request'
+        env:
+          API_KEY: ${{ secrets.API_KEY }}
+          API_BASE_URL: ${{ secrets.API_BASE_URL || 'https://api.example.com' }}
+        run: |
+          npx -y @ondc/build-tools@latest push-to-db -f build.yaml -t generated/raw_table.json -u "$API_BASE_URL" -k "$API_KEY"

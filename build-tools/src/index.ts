@@ -6,6 +6,7 @@ import { createMakeOnixCommand } from "./commands/make-onix.js";
 import { NotImplementedError } from "./errors/NotImplementedError.js";
 import { createGenChangeLogsCommand } from "./commands/gen-change-logs.js";
 import { createGenRagTableCommand } from "./commands/gen-rag-table.js";
+import { createPushToDbCommand } from "./commands/push-to-db.js";
 const program = new Command();
 
 program.name("ondc-tools").description("ONDC build toolchain CLI").version("1.0.0");
@@ -15,6 +16,8 @@ program.addCommand(createValidateCommand());
 program.addCommand(createMakeOnixCommand());
 program.addCommand(createGenChangeLogsCommand());
 program.addCommand(createGenRagTableCommand());
+program.addCommand(createPushToDbCommand());
+
 
 program.parseAsync(process.argv).catch((error: unknown) => {
     if (error instanceof NotImplementedError) {
