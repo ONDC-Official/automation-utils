@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(ls /Users/rudranshsinghal/ondc/new-dev-guide/build-cleanser/*.ts)"
+      "Bash(ls /Users/rudranshsinghal/ondc/new-dev-guide/build-cleanser/*.ts)",
+      "Bash(npm test:*)"
     ]
   }
 }

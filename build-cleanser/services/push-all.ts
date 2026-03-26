@@ -64,6 +64,9 @@ function pushDomainVersion(domain: string, version: string) {
 
         console.log(`Cloning ${gitURl} ...`);
         execSync(`git clone ${gitURl} ${specsRepoDir}`, { stdio: "inherit" });
+        
+        // Force case sensitivity in git so that case changes (like airline.yaml -> Airline.yaml) are pushed correctly
+        execSync(`git config core.ignorecase false`, { cwd: specsRepoDir, stdio: "inherit" });
 
         console.log(`Creating and checking out branch ${branchName}...`);
         // If branch exists remotely, checkout. Otherwise create it.
@@ -75,6 +78,9 @@ function pushDomainVersion(domain: string, version: string) {
             // Exit code 2 means it doesn't exist on origin, so we create it
             execSync(`git checkout -b ${branchName}`, { cwd: specsRepoDir, stdio: "inherit" });
         }
+
+        console.log(`Cleaning old config folder...`);
+        rmSync(join(specsRepoDir, "config"), { recursive: true, force: true });
 
         console.log(`Copying configs...`);
         cpSync(configDir, specsRepoDir, { recursive: true });
@@ -151,7 +157,9 @@ jobs:
         }
 
         console.log("Committing to branch...");
-        execSync(`git add .`, { cwd: specsRepoDir, stdio: "inherit" });
+        // Remove old cached index entries so case-renames (e.g. airline.yaml -> Airline.yaml) are tracked correctly
+        execSync(`git rm -r --cached config || true`, { cwd: specsRepoDir, stdio: "inherit" });
+        execSync(`git add -A`, { cwd: specsRepoDir, stdio: "inherit" });
         execSync(`git commit -m "chore: push configs and mock-service for ${domain} ${version}" || true`, { 
             cwd: specsRepoDir, 
             stdio: "inherit" 

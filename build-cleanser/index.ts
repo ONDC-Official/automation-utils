@@ -7,6 +7,7 @@ import { connectDB } from "./utils/db.js";
 import { finalBuild as fetchBuilds } from "./services/fetch-build.js";
 import { formatAllBuilds } from "./services/formatter.js";
 import { pushAll } from "./services/push-all.js";
+import { rerunWorkflows } from "./services/rerun-workflows.js";
 
 const program = new Command();
 
@@ -55,8 +56,14 @@ program
     });
 
 program.command("push-all").description("push all to specs").action(async () => {
-    await pushAll();    
-}    
-)
+    await pushAll();
+});
+
+program
+    .command("rerun-workflows")
+    .description("Re-trigger spec-workflow.yml on all branches that push-all has pushed to")
+    .action(async () => {
+        await rerunWorkflows();
+    });
 
 program.parse();
