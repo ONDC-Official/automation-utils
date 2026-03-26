@@ -89,9 +89,9 @@ describe("BuildConfig schema", () => {
         expect(result.success).toBe(false);
     });
 
-    it("rejects empty x-errors-codes.code when code array expected", () => {
+    it("rejects empty x-errorcodes.code when code array expected", () => {
         const config = makeConfig({
-            "x-errors-codes": { code: "not-an-array" } as any,
+            "x-errorcodes": { code: "not-an-array" } as any,
         });
         const result = BuildConfig.safeParse(config);
         expect(result.success).toBe(false);

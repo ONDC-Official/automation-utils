@@ -1,7 +1,7 @@
 import { describe, it, expect } from "@jest/globals";
 import { createHash } from "node:crypto";
-import { ingestBuild } from "../../src/store/ingest.js";
-import { COLLECTIONS } from "../../src/store/collections.js";
+import { ingestBuild } from "../../src/store/build-data/ingest.js";
+import { COLLECTIONS } from "../../src/store/build-data/collections.js";
 import { createMockDb } from "./mock-db.js";
 import { makeConfig, makeUpdatedConfig, makeFlowConfig } from "../fixtures.js";
 

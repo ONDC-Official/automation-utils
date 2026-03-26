@@ -105,7 +105,7 @@ const DEFAULT_CONFIG: BuildConfig = {
         },
     ],
     "x-validations": { rules: ["rule-1", "rule-2"] },
-    "x-errors-codes": {
+    "x-errorcodes": {
         code: [
             { Event: "SEARCH_ERR", Description: "Search failed", From: "BAP", code: "40001" },
             { Event: "SELECT_ERR", Description: "Select failed", From: "BPP", code: "40002" },
@@ -167,7 +167,7 @@ export function makeUpdatedConfig(overrides: Partial<BuildConfig> = {}): BuildCo
                 config: makeFlowConfig("flow-3"),
             },
         ],
-        "x-errors-codes": {
+        "x-errorcodes": {
             code: [
                 // 40001 modified
                 {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "@jest/globals";
-import { createIndexes, COLLECTIONS } from "../../src/store/collections.js";
+import { createIndexes, COLLECTIONS } from "../../src/store/build-data/collections.js";
 import { createMockDb } from "./mock-db.js";
 
 describe("COLLECTIONS", () => {
@@ -77,9 +77,7 @@ describe("createIndexes", () => {
         await createIndexes(mock.db);
 
         const flowsCol = mock.getCollection(COLLECTIONS.FLOWS);
-        const tagsIdx = flowsCol.indexes.find(
-            (i) => (i.spec as Record<string, number>).tags === 1,
-        );
+        const tagsIdx = flowsCol.indexes.find((i) => (i.spec as Record<string, number>).tags === 1);
         expect(tagsIdx).toBeDefined();
     });
 
