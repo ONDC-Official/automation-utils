@@ -90,7 +90,7 @@ const FlowsIndexZ = z.object({
 const EnumEntryZ = z.object({
     code: z.string(),
     description: z.string().default("no description provided"),
-    reference: z.string().optional(),
+    reference: z.string().default("no reference provided"),
 });
 
 // AttributeLeafZ references AttributeTagEntryZ which references AttributeLeafZ — use z.lazy
