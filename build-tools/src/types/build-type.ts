@@ -113,7 +113,7 @@ interface AttributeTagEntry {
 
 const AttributeLeafZ: z.ZodType<AttributeLeaf> = z.lazy(() =>
     z.object({
-        required: z.boolean(),
+        required: z.any(),
         usage: z.coerce.string().catch("-"),
         info: z.coerce.string().catch("no information provided"),
         owner: z.coerce.string().catch("unknown"),
