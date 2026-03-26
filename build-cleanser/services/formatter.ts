@@ -7,6 +7,7 @@ import {
 } from "fs";
 import { join, resolve } from "path";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
+import { distance } from "fastest-levenshtein";
 
 const FINAL_OUTPUTS_DIR = resolve("../final-outputs");
 const BUILD_YAMLS_DIR = resolve("../build-yamls");
@@ -283,16 +284,46 @@ async function processBuildYaml(
     const branchName = readBranchName(domain, version);
     const reporting = await fetchReporting(domain, version);
 
-    // Collect unique use case IDs from x-attributes
+    // Collect unique use case IDs from x-flows
+    const flows = doc["x-flows"] as Array<Record<string, unknown>> | undefined;
+    const flowUsecases = new Set<string>();
+    if (flows && flows.length > 0) {
+        for (const flow of flows) {
+            const flowMeta = flow["meta"] as Record<string, unknown> | undefined;
+            const usecase = (flowMeta?.use_case_id as string);
+            if (usecase) flowUsecases.add(usecase);
+        }
+    }
+    const correctUsecases = Array.from(flowUsecases);
+
+    // Collect and correct use case IDs from x-attributes using Levenshtein distance
     const attributes = doc["x-attributes"] as
         | Array<Record<string, unknown>>
         | undefined;
-    const usecases: string[] = [];
+    const usecases: string[] = [...correctUsecases];
+
     if (attributes && attributes.length > 0) {
         for (const attrSet of attributes) {
-            const meta = attrSet["meta"] as Record<string, unknown> | undefined;
-            const id = meta?.use_case_id as string | undefined;
-            if (id && !usecases.includes(id)) usecases.push(id);
+            let meta = attrSet["meta"] as Record<string, unknown> | undefined;
+            if (!meta) {
+                meta = {};
+                attrSet["meta"] = meta;
+            }
+            const id = meta.use_case_id as string | undefined;
+            if (id && correctUsecases.length > 0) {
+                let bestMatch = correctUsecases[0];
+                let minDist = distance(id, bestMatch);
+                for (let i = 1; i < correctUsecases.length; i++) {
+                    const d = distance(id, correctUsecases[i]);
+                    if (d < minDist) {
+                        minDist = d;
+                        bestMatch = correctUsecases[i];
+                    }
+                }
+                meta.use_case_id = bestMatch;
+            } else if (id && !usecases.includes(id)) {
+                usecases.push(id);
+            }
         }
     }
 
@@ -313,7 +344,7 @@ async function processBuildYaml(
         components: { $ref: "./specs/openapi.yaml#/components" },
         "x-attributes": { $ref: "./attributes/index.yaml" },
         "x-validations": { $ref: "./validations/index.yaml" },
-        "x-errors-codes": { $ref: "./errors/index.yaml" },
+        "x-errorcodes": { $ref: "./errors/index.yaml" },
         "x-supported-actions": { $ref: "./actions/index.yaml" },
         "x-flows": { $ref: "./flows/index.yaml#/flows" },
         "x-docs": { $ref: "./docs" },
@@ -335,7 +366,6 @@ async function processBuildYaml(
     );
 
     // --- flows/<usecase>/<flowId>.yaml + flows/index.yaml (flat) ---
-    const flows = doc["x-flows"] as Array<Record<string, unknown>> | undefined;
     if (flows && flows.length > 0) {
         ensureDir(join(outBase, "flows"));
 

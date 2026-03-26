@@ -6,6 +6,7 @@ import { getFlows } from "./services/fetch-flows.js";
 import { connectDB } from "./utils/db.js";
 import { finalBuild as fetchBuilds } from "./services/fetch-build.js";
 import { formatAllBuilds } from "./services/formatter.js";
+import { pushAll } from "./services/push-all.js";
 
 const program = new Command();
 
@@ -52,5 +53,10 @@ program
         // Implement formatting logic here
         await formatAllBuilds();
     });
+
+program.command("push-all").description("push all to specs").action(async () => {
+    await pushAll();    
+}    
+)
 
 program.parse();
