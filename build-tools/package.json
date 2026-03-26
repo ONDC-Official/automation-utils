@@ -1,6 +1,6 @@
 {
     "name": "@ondc/build-tools",
-    "version": "0.0.9",
+    "version": "0.0.10",
     "description": "ONDC build toolchain — CLI for pipeline ops + library for MongoDB ingestion",
     "type": "module",
     "main": "./dist/lib.js",
@@ -19,7 +19,8 @@
         "ondc-tools": "./dist/index.js"
     },
     "files": [
-        "dist"
+        "dist",
+        "scripts"
     ],
     "scripts": {
         "dev": "tsx src/index.ts",
