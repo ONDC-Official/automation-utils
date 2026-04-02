@@ -142,7 +142,7 @@ export async function ingestBuild(db: Db, config: BuildConfig): Promise<IngestRe
     if (flows.length > 0) {
         const flowOps = flows.map((f) => ({
             updateOne: {
-                filter: { domain, version, flowId: f.id },
+                filter: { domain, version, usecase: f.usecase, flowId: f.id },
                 update: {
                     $set: {
                         domain,
