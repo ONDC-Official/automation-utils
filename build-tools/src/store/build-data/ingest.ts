@@ -137,7 +137,6 @@ export async function ingestBuild(db: Db, config: BuildConfig): Promise<IngestRe
 
     // ── Upsert flows (bulkWrite + remove stale) ────────────────────────────
     const flows = config["x-flows"];
-    const flowIds = flows.map((f) => f.id);
 
     if (flows.length > 0) {
         const flowOps = flows.map((f) => ({
@@ -160,9 +159,19 @@ export async function ingestBuild(db: Db, config: BuildConfig): Promise<IngestRe
         }));
         await db.collection(COLLECTIONS.FLOWS).bulkWrite(flowOps);
     }
-    await db
-        .collection(COLLECTIONS.FLOWS)
-        .deleteMany({ domain, version, ...(flowIds.length > 0 && { flowId: { $nin: flowIds } }) });
+
+    // Remove stale flows: scoped to usecases present in this config only.
+    // Two flows in different usecases may share the same flowId — so deletions
+    // must never cross usecase boundaries.
+    const usecasesInConfig = [...new Set(flows.map((f) => f.usecase))];
+    if (usecasesInConfig.length > 0) {
+        await db.collection(COLLECTIONS.FLOWS).deleteMany({
+            domain,
+            version,
+            usecase: { $in: usecasesInConfig },
+            $nor: flows.map((f) => ({ usecase: f.usecase, flowId: f.id })),
+        });
+    }
 
     // ── Upsert attributes ───────────────────────────────────────────────────
     const attributes = config["x-attributes"];

@@ -155,30 +155,42 @@ describe("ingestBuild", () => {
     it("removes stale flows on update", async () => {
         const mock = createMockDb();
         const v1 = makeConfig();
+        // v1: flow-1 (uc-alpha), flow-2 (uc-beta)
 
         await ingestBuild(mock.db, v1);
 
         const flowsCol = mock.getCollection(COLLECTIONS.FLOWS);
-        expect(flowsCol.docs).toHaveLength(2); // flow-1, flow-2
+        expect(flowsCol.docs).toHaveLength(2);
 
-        // v2 only has flow-1
+        // v2: uc-alpha now has a new flow-3 (flow-1 dropped), uc-beta has flow-2 still
+        // → flow-1 should be removed (stale within uc-alpha), flow-2 untouched (different usecase)
         const v2 = makeConfig({
             "x-flows": [
                 {
                     type: "playground" as const,
-                    id: "flow-1",
+                    id: "flow-3",
                     usecase: "uc-alpha",
                     tags: ["happy-path"],
-                    description: "Only flow",
-                    config: makeFlowConfig("flow-1"),
+                    description: "New alpha flow",
+                    config: makeFlowConfig("flow-3"),
+                },
+                {
+                    type: "playground" as const,
+                    id: "flow-2",
+                    usecase: "uc-beta",
+                    tags: ["select"],
+                    description: "Basic select flow",
+                    config: makeFlowConfig("flow-2"),
                 },
             ],
         });
         await ingestBuild(mock.db, v2);
 
-        // flow-2 should be removed
-        expect(flowsCol.docs).toHaveLength(1);
-        expect(flowsCol.docs[0].flowId).toBe("flow-1");
+        // flow-1 (uc-alpha) removed, flow-3 (uc-alpha) added, flow-2 (uc-beta) unchanged
+        expect(flowsCol.docs).toHaveLength(2);
+        expect(flowsCol.docs.find((d) => d.flowId === "flow-1")).toBeUndefined();
+        expect(flowsCol.docs.find((d) => d.flowId === "flow-2")).toBeDefined();
+        expect(flowsCol.docs.find((d) => d.flowId === "flow-3")).toBeDefined();
     });
 
     it("removes stale docs on update", async () => {

@@ -21,6 +21,11 @@ interface MockCollection {
 function matchesFilter(doc: Doc, filter: Doc): boolean {
     for (const [key, val] of Object.entries(filter)) {
         if (key === "$nin" || key === "$in") continue;
+        if (key === "$nor") {
+            const norClauses = val as Doc[];
+            if (norClauses.some((clause) => matchesFilter(doc, clause))) return false;
+            continue;
+        }
         if (typeof val === "object" && val !== null && !Array.isArray(val)) {
             const opObj = val as Record<string, unknown>;
             if ("$nin" in opObj) {
@@ -103,10 +108,15 @@ export function createMockDb(): MockDb {
                     } else if (options?.upsert) {
                         col.docs.push({ ...doc });
                     }
-                    return Promise.resolve({ modifiedCount: idx >= 0 ? 1 : 0, upsertedCount: idx < 0 ? 1 : 0 });
+                    return Promise.resolve({
+                        modifiedCount: idx >= 0 ? 1 : 0,
+                        upsertedCount: idx < 0 ? 1 : 0,
+                    });
                 },
 
-                bulkWrite(ops: { updateOne: { filter: Doc; update: { $set: Doc }; upsert?: boolean } }[]) {
+                bulkWrite(
+                    ops: { updateOne: { filter: Doc; update: { $set: Doc }; upsert?: boolean } }[],
+                ) {
                     col.operations.push({ type: "bulkWrite", args: [ops] });
                     for (const op of ops) {
                         const { filter, update, upsert } = op.updateOne;
