@@ -1,6 +1,6 @@
 {
     "name": "@ondc/build-tools",
-    "version": "0.0.17",
+    "version": "0.0.18",
     "description": "ONDC build toolchain — CLI for pipeline ops + library for MongoDB ingestion",
     "type": "module",
     "main": "./dist/lib.js",
