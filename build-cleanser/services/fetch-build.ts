@@ -8,7 +8,7 @@ import path from "path";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const outputsDir = "../build-yamls";
+const outputsDir = "../../build-yamls";
 
 async function getAllBranches(repoUrl: string): Promise<string[]> {
     const match = repoUrl.match(/github\.com\/([^/]+)\/([^/]+)/);

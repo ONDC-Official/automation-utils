@@ -5,7 +5,7 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const OUTPUT_PATH = "../outputs";
+const OUTPUT_PATH = "../../outputs";
 
 export async function getFlows() {
     const data = await fetchDomains();

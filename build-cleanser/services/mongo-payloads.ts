@@ -8,9 +8,6 @@ export const getPayloads = async (
     count: number,
 ) => {
     try {
-        const totalCount = await Payload.countDocuments();
-        console.log(`[getPayloads] Total payloads in DB: ${totalCount}`);
-
         actions = actions.map((a) => a.trim().toUpperCase());
 
         const payloads = await Payload.find({
@@ -35,9 +32,6 @@ export const getPayloads = async (
         for (const payload of payloads) {
             const txn = payload.transactionId;
             if (!txn) {
-                console.warn(
-                    `[getPayloads] Skipping payload with missing transactionId (payloadId=${payload.payloadId})`,
-                );
                 continue;
             }
             if (!grouped[txn]) grouped[txn] = [];
@@ -48,9 +42,6 @@ export const getPayloads = async (
         const validGroups = Object.values(grouped).filter((group) => {
             const txnId = group[0].transactionId;
             if (group.length < count) {
-                console.warn(
-                    `[getPayloads] Skipping txn=${txnId}: only ${group.length}/${count} payloads`,
-                );
                 return false;
             }
             const actionsInGroup = new Set(group.map((p) => p.action));
@@ -58,9 +49,6 @@ export const getPayloads = async (
                 (a) => !actionsInGroup.has(a),
             );
             if (missingActions.length) {
-                console.warn(
-                    `[getPayloads] Skipping txn=${txnId}: missing actions [${missingActions.join(", ")}]`,
-                );
                 return false;
             }
             return true;

@@ -1,10 +1,14 @@
 {
   "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(ls -la /Users/rudranshsinghal/ondc/new-dev-guide/build-tools/*.yaml)",
+      "Read(//private/tmp/ondc-test-docs/**)",
+      "Read(//private/tmp/ondc-test-docs/flows/**)",
+      "Read(//private/tmp/ondc-test-docs/attributes/**)"
+    ],
     "additionalDirectories": [
       "/Users/rudranshsinghal/ondc/new-dev-guide/build-tools/src/commands"
-    ],
-    "allow": [
-      "Bash(npm install:*)"
     ]
   }
 }

@@ -28,3 +28,8 @@ export async function connectDB() {
         throw err;
     }
 }
+
+export async function disconnectDB() {
+    await mongoose.disconnect();
+    console.log("[db] Disconnected from MongoDB");
+}

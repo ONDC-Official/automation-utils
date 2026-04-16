@@ -3,7 +3,7 @@ import { Command } from "commander";
 import { convert } from "./convert.js";
 import { convertAll } from "./convert-all.js";
 import { getFlows } from "./services/fetch-flows.js";
-import { connectDB } from "./utils/db.js";
+import { connectDB, disconnectDB } from "./utils/db.js";
 import { finalBuild as fetchBuilds } from "./services/fetch-build.js";
 import { formatAllBuilds } from "./services/formatter.js";
 import { pushAll } from "./services/push-all.js";
@@ -30,7 +30,11 @@ program
     .description("Fetch and print available flows")
     .action(async () => {
         await connectDB();
-        const flows = await getFlows();
+        try {
+            await getFlows();
+        } finally {
+            await disconnectDB();
+        }
     });
 
 program
@@ -55,13 +59,18 @@ program
         await formatAllBuilds();
     });
 
-program.command("push-all").description("push all to specs").action(async () => {
-    await pushAll();
-});
+program
+    .command("push-all")
+    .description("push all to specs")
+    .action(async () => {
+        await pushAll();
+    });
 
 program
     .command("rerun-workflows")
-    .description("Re-trigger spec-workflow.yml on all branches that push-all has pushed to")
+    .description(
+        "Re-trigger spec-workflow.yml on all branches that push-all has pushed to",
+    )
     .action(async () => {
         await rerunWorkflows();
     });

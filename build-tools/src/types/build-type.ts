@@ -88,9 +88,9 @@ const FlowsIndexZ = z.object({
 // ─── Attributes ───────────────────────────────────────────────────────────────
 
 const EnumEntryZ = z.object({
-    code: z.coerce.string().catch('ENUM-NOT-AVAILABLE'),
-    description: z.coerce.string().catch('no description provided'),
-    reference: z.coerce.string().catch('no reference provided'),
+    code: z.coerce.string().catch("ENUM-NOT-AVAILABLE"),
+    description: z.coerce.string().catch("no description provided"),
+    reference: z.coerce.string().catch("no reference provided"),
 });
 
 // AttributeLeafZ references AttributeTagEntryZ which references AttributeLeafZ — use z.lazy

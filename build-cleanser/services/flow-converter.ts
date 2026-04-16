@@ -5,6 +5,7 @@ import { closest } from "fastest-levenshtein";
 import { OldFlows } from "../types/old-build.js";
 import { Flow } from "../types/new-build.js";
 import { generatePlaygroundConfigFromFlowConfigWithMeta } from "@ondc/automation-mock-runner";
+import axios from "axios";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const outputsBase = path.resolve(__dirname, "../../outputs");
 
@@ -27,20 +28,14 @@ export async function flowConverter(
     const oldFlowSummaries = oldFlows.map((f) => f.summary);
     for (const usecase of usecases) {
         const usecaseDir = path.join(versionDir, usecase);
-        const flowIds = fs
-            .readdirSync(usecaseDir)
-            .filter((entry) =>
-                fs.statSync(path.join(usecaseDir, entry)).isDirectory(),
-            );
+        const flowEntries = findFlowDirs(usecaseDir);
 
-        for (const flowId of flowIds) {
+        for (const { flowId, flowDir } of flowEntries) {
             try {
                 const matchedSummary = closest(flowId, oldFlowSummaries);
                 const matchedOldFlow = oldFlows.find(
                     (f) => f.summary === matchedSummary,
                 )!;
-
-                const flowDir = path.join(usecaseDir, flowId);
                 const flowsPath = path.join(flowDir, "flow.json");
                 const payloadsPath = path.join(flowDir, "payloads.json");
 
@@ -63,13 +58,23 @@ export async function flowConverter(
                 const deepClonedPayloads: any = JSON.parse(
                     JSON.stringify(latestPayloadGroup),
                 );
-                const newFlowConfig =
+                let newFlowConfig =
                     await generatePlaygroundConfigFromFlowConfigWithMeta(
                         latestPayloadGroup,
                         flowsJson,
                         domain,
                         version,
                     );
+
+                const playgroundHostedConfig = await fetchLiveConfig(
+                    domain,
+                    version,
+                    usecase,
+                    flowId,
+                );
+                if (playgroundHostedConfig) {
+                    newFlowConfig = playgroundHostedConfig;
+                }
 
                 for (const step of newFlowConfig.steps) {
                     step.examples = [];
@@ -103,6 +108,7 @@ export async function flowConverter(
                     .trim()
                     .split("_")
                     .join(" ");
+
                 newFlowConfig.meta.use_case_id = usecase;
                 newFlowConfig.meta.flowId = flowId;
                 newFlows.push(newFlowConfig);
@@ -115,6 +121,33 @@ export async function flowConverter(
         }
     }
     return newFlows;
+}
+
+function findFlowDirs(
+    usecaseDir: string,
+): { flowId: string; flowDir: string }[] {
+    const results: { flowId: string; flowDir: string }[] = [];
+
+    function walk(dir: string, relParts: string[]) {
+        const hasFlowJson = fs.existsSync(path.join(dir, "flow.json"));
+        const hasPayloads = fs.existsSync(path.join(dir, "payloads.json"));
+        if (hasFlowJson || hasPayloads) {
+            results.push({
+                flowId: relParts.join("/"),
+                flowDir: dir,
+            });
+            return; // don't recurse further once we found the leaf
+        }
+        const entries = fs
+            .readdirSync(dir)
+            .filter((e) => fs.statSync(path.join(dir, e)).isDirectory());
+        for (const entry of entries) {
+            walk(path.join(dir, entry), [...relParts, entry]);
+        }
+    }
+
+    walk(usecaseDir, []);
+    return results;
 }
 
 function findLatestPayloadGroup(
@@ -137,5 +170,33 @@ function findLatestPayloadGroup(
             Error: ${error} `,
         );
         return [];
+    }
+}
+
+async function fetchLiveConfig(
+    domain: string,
+    version: string,
+    usecase: string,
+    flowId: string,
+): Promise<any> {
+    try {
+        const url = `${process.env.CONFIG_SERVICE_URL}/mock/playground`;
+        const playgroundConfig = await axios.get(url, {
+            params: {
+                domain,
+                version,
+                usecase,
+                flowId,
+            },
+        });
+        console.log(
+            `Fetched live config from playground for domain "${domain}", version "${version}", usecase "${usecase}", flow "${flowId}"`,
+        );
+        return playgroundConfig.data;
+    } catch (error) {
+        console.warn(
+            `Warning: Failed to fetch live config for domain "${domain}", version "${version}", usecase "${usecase}", flow "${flowId}". Error: ${error}`,
+        );
+        return undefined;
     }
 }
