@@ -97,17 +97,13 @@ export async function draftLeaves(
 
         const inputs = batch.map(itemToLLMInput);
         const bundles = batch.map((it) => it.bundle);
-        const { drafts: batchDrafts } = await draftBatchWithRetry(
-            llm,
-            bundles,
-            inputs,
-            (ev) =>
-                onEvent?.({
-                    ...ev,
-                    batchIndex: b,
-                    batches,
-                    size,
-                }),
+        const { drafts: batchDrafts } = await draftBatchWithRetry(llm, bundles, inputs, (ev) =>
+            onEvent?.({
+                ...ev,
+                batchIndex: b,
+                batches,
+                size,
+            }),
         );
         drafts.push(...batchDrafts);
     }
@@ -131,8 +127,9 @@ async function draftBatchWithRetry(
         const prompt = buildPrompt(inputs, attempt > 0 ? lastReason : "");
         try {
             const raw = await llm.complete([{ role: "user", content: prompt }]);
-            const parsed = parseDraftJson(raw, bundles.length);
-            const reconciled = reconcileWithExisting(parsed, bundles);
+            const infos = parseDraftText(raw, bundles.length);
+            const drafts = infos.map((info, i) => buildDraftFromInfo(info, bundles[i]!));
+            const reconciled = applyExisting(drafts, bundles);
             onEvent({ kind: "ok", attempt, elapsedMs: Date.now() - started });
             return { drafts: reconciled };
         } catch (err) {
@@ -227,194 +224,191 @@ export function itemToLLMInput(it: DraftItem): LLMInputAttr {
 
 export function buildPrompt(inputs: LLMInputAttr[], retryReason: string): string {
     const correction = retryReason
-        ? `\n\nPREVIOUS ATTEMPT FAILED: ${retryReason}\nReturn a JSON array of EXACTLY ${inputs.length} objects in the SAME ORDER as the input. Each object must match the LeafDescription type. No prose. No partial output.`
+        ? `\n\nPREVIOUS ATTEMPT FAILED: ${retryReason}\nReturn EXACTLY ${inputs.length} blocks <<<1>>>..<<<${inputs.length}>>> in input order. Plain text, no JSON, no markdown, no code fences.`
         : "";
 
-    return `You are an ONDC protocol documentation writer. Your audience is a partner integrator (BAP or BPP engineer) implementing this action for the first time. Each attribute they read about must teach them what it means in the ONDC domain, when it is set, when it is read, and any non-obvious constraint — anchored in the evidence provided.
-
-You will receive an array of attribute inputs. For EACH input produce ONE LeafDescription JSON object with this EXACT shape:
-
-{
-  "info": string,                                      // REQUIRED. 1–3 sentences. Domain-focused prose.
-  "enums"?: [{ "code": string, "description": string, "reference": string }],
-  "tags"?:  [{ "code": string, "_description": LeafDescription, "list"?: [{ "code": string, "_description": LeafDescription }] }]
-}
-
-DO NOT include \`usage\`, \`type\`, \`required\`, or \`owner\`. They are derived deterministically downstream from sample values and the action name. If you include them, they will be discarded.
+    return `You are an ONDC protocol documentation writer. Your audience is a partner integrator (BAP or BPP engineer) implementing this action for the first time. For each attribute, teach them what it means in the ONDC domain, what THIS action does with it, and any non-obvious constraint — anchored in the evidence provided.
 
 ────────────────────────────────────────
-EVIDENCE HIERARCHY — anchor "info" in this order
+OUTPUT FORMAT
 ────────────────────────────────────────
-1. \`openapi.description\` and \`openapi.custom\` — authoritative ONDC specification text. Trust this first.
-2. \`existing_leaf\` — prior human-curated description fragments, including any inner \`info\` field. Prefer rephrasing this over inventing new prose.
-3. \`referenced_in\` — code snippets showing how the attribute is set (\`generate\`), checked (\`validate\`), required (\`requirements\`), or aliased through saveData. Each entry now carries:
-   - \`role\`: "read" | "write" | "delete" — what the code does at this site.
-   - \`gated_by\` (when present): the predicate that gates the operation, e.g. \`tag.descriptor.code === "LOAN_INFO"\`. Reflect the gating condition in "info" when material.
-4. \`save_data\` — entries with \`inherited: true\` mean the attribute is persisted as part of an ancestor object stored under \`ancestor_jsonpath\`. Note this when the persistence is the most informative signal ("travels in the saved \`order\` payload").
-5. \`session_reads\` — places where the value is read out of session. Each entry shows the upstream \`origin_action\` and \`origin_path\` that wrote the data. Use this to phrase cross-step provenance ("seeded from the order persisted by select").
-6. \`gated_writes\` — already a filtered shortlist of write sites with their gating predicate. If present, "info" should mention the gating condition exactly once.
-7. \`cross_flow\` — boolean signals across flows. \`set_in_generate\` && \`asserted_in_validate\` ⇒ round-trip through the protocol; \`persisted_key\` with \`consumed_across_steps\` ⇒ stable session anchor across actions.
-8. \`sample_values\` / \`most_common_value\` — illustrative only. Never the primary basis for "info".
+For ${inputs.length} inputs, return EXACTLY ${inputs.length} blocks in input order:
 
-────────────────────────────────────────
-FORBIDDEN MOVES (each will fail review)
-────────────────────────────────────────
-- Do NOT restate the path. Bad: "context.transaction_id is the transaction_id under context."
-- Do NOT include sample/example values in "info". Examples live in \`usage\`, derived elsewhere.
-- Do NOT claim "required" or "optional". That's downstream.
-- Do NOT invent constraints, formats, or relationships not present in the evidence.
-- Do NOT write generic ONDC boilerplate ("This is part of the ONDC protocol…", "Used in ONDC transactions…"). Be specific about THIS attribute.
-- Do NOT enumerate child fields when \`is_leaf\` is false. Describe the role of the container in one sentence.
+<<<1>>>
+<info text>
+<<<2>>>
+<info text>
+...
+<<<${inputs.length}>>>
+<info text>
+
+- Each block body: 1–2 sentences, ≤ 280 characters, no line breaks inside the body.
+- Plain text only. NO JSON. NO markdown. NO surrounding quotes. NO code fences.
+- No prose before <<<1>>>. No prose after the last block.
+- If you have NO usable evidence for an input, leave that block body empty (just the marker line followed by a blank line).
+
+You write ONLY the info string. enums, tags, type, required, usage, owner are filled in automatically by post-processing — do not produce them, do not reference them.
 
 ────────────────────────────────────────
-ENUM RULES (strict)
+ACTION-AWARE FRAMING (use the input's \`action\` field)
 ────────────────────────────────────────
-- The ONLY authoritative source for \`enums\` is \`existing_enums\`. If non-empty, reuse its codes verbatim and in the same order. You MAY fill in an empty/placeholder \`description\` per entry, but never invent or rename codes.
-- If \`existing_enums\` is empty or absent, DO NOT emit \`enums\`.
-
-TAG RULES (ONDC-specific)
-- If \`existing_tags\` is non-empty, preserve the codes and shape verbatim in your \`tags\` output. You MAY enrich each tag's \`_description.info\`. Never rename or drop tag codes.
-- If \`existing_tags\` is empty/absent, do NOT fabricate tags.
+- BAP-side actions (search, select, init, confirm, update, cancel, status, track, rating, support): the BAP writes the request. Describe what the BAP places here and why.
+- BPP-side actions (on_search, on_select, on_init, on_confirm, on_update, on_cancel, on_status, on_track, on_rating, on_support): the BPP writes the response. Describe what the BPP returns and how the BAP consumes it.
+- When \`cross_flow.set_in_generate && cross_flow.asserted_in_validate\`, name the round-trip explicitly (e.g. "BAP mints on init; BPP echoes in on_init").
+- When \`cross_flow.persisted_key\` is set and \`consumed_across_steps\` is true, mention that the value is anchored in session and reused by later steps.
 
 ────────────────────────────────────────
-EXAMPLES of GOOD "info" (style + density)
+CONTAINER RULE (when \`is_leaf\` is false)
 ────────────────────────────────────────
-Path: context.transaction_id
-Good info: "Stable identifier shared across every message of one ONDC transaction. The BAP mints it on the first request and every later request and response carries the same value so participants can correlate the chain."
-
-Path: message.intent.category.id
-Good info: "Domain-specific category code identifying which ONDC catalog branch the buyer is searching against. Sellers use it to filter their catalog before responding."
-
-Path: message.order.fulfillments
-Good info: "Ordered list of fulfillment plans the BPP intends to perform for this order, each describing a delivery, pickup, or service leg. Used by the BAP to display the fulfilment summary and to track state transitions."
-
-Path: message.order.fulfillments.state.descriptor.code (enum)
-Good info: "Lifecycle state of this fulfillment leg. The BPP advances the code as the leg progresses; the BAP uses it to drive the buyer-facing status display."
-
-Path: message.order.items[*].price.value (gated write under tag descriptor TERM)
-Good info: "Per-item rupee amount for the loan principal. The BPP rewrites this with the buyer's chosen request amount in select, and the value rides along when the saved order payload is replayed in confirm."
-
-Path: message.order.tags[*].list[*].value (gated by descriptor.code === "TERM" inside LOAN_INFO)
-Good info: "Loan term in months. Set on the LOAN_INFO/TERM cell of the items tag-list when the buyer picks an offer; the BPP reads it back to compute repayment schedules."
+- Write ONE sentence about the role of the container in the message at this action.
+- Do NOT enumerate child fields, list keys, or describe the schema shape.
+- Do NOT invent purpose. If openapi and existing_leaf carry no description and refs only show structural traversal, return an empty body for that block.
 
 ────────────────────────────────────────
-OUTPUT
+EVIDENCE PRECEDENCE — when sources conflict, the higher tier wins
 ────────────────────────────────────────
-Respond with a JSON array of EXACTLY ${inputs.length} objects, in the SAME ORDER as the input. Wrap the array in a \`\`\`json fenced block. No prose before or after.${correction}
+1. \`openapi.description\` / \`openapi.custom\` — authoritative ONDC spec text. Use first.
+2. \`existing_leaf.info\` — prior curated text. If specific and correct, rephrase concisely. If generic, vague, ungrammatical, or contradicted by openapi, REWRITE rather than preserve.
+3. \`referenced_in\` — code refs. \`role\` = read|write|delete; \`gated_by\` = the predicate gating the operation (e.g. \`tag.descriptor.code === "LOAN_INFO"\`). If \`gated_by\` is present, mention the gate exactly once.
+4. \`save_data\` — \`inherited:true\` means the attribute travels inside an ancestor object stored under \`ancestor_jsonpath\`. Mention persistence only when it is the most informative signal.
+5. \`session_reads\` — \`origin_action\` + \`origin_path\` show upstream provenance ("seeded from the order persisted by select").
+6. \`gated_writes\` — derived shortlist of write sites with their gating predicate. Prefer over \`referenced_in\` when describing gating.
+7. \`cross_flow\` — see ACTION-AWARE FRAMING above.
+8. \`sample_values\` / \`most_common_value\` — illustrative only. NEVER the primary basis for info, and never quoted in the body.
 
-INPUT:
+If tiers 1–7 carry no signal, return an empty body.
+
+────────────────────────────────────────
+FORBIDDEN
+────────────────────────────────────────
+- Restating the path. Bad: "context.transaction_id is the transaction_id under context."
+- Sample/example values inside the body.
+- Claims about required/optional, type, or owner.
+- Invented constraints, formats, or relationships not in the evidence.
+- Generic ONDC boilerplate ("part of the ONDC protocol", "used in ONDC transactions"). Be specific about THIS attribute.
+- Enumerating child fields when is_leaf is false.
+- Producing enum codes, tag codes, or any structured list.
+
+────────────────────────────────────────
+EXAMPLES (input path → output body)
+────────────────────────────────────────
+context.transaction_id (action: search)
+<<<i>>>
+Stable identifier shared across every message of one ONDC transaction. The BAP mints it on the first request and every later request and response carries the same value so participants can correlate the chain.
+
+message.intent.category.id (action: search)
+<<<i>>>
+Domain-specific category code identifying which ONDC catalog branch the buyer is searching against. Sellers use it to filter their catalog before responding.
+
+message.order.fulfillments (action: on_confirm, is_leaf: false)
+<<<i>>>
+Ordered list of fulfillment plans the BPP intends to perform for this order, each describing a delivery, pickup, or service leg.
+
+message.order.billing (action: init, is_leaf: false)
+<<<i>>>
+Buyer billing details the BAP submits so the BPP can issue an invoice; carried through to confirm and on_confirm unchanged.
+
+message.order.fulfillments.state.descriptor.code (action: on_status, existing_enums present)
+<<<i>>>
+Lifecycle state of this fulfillment leg. The BPP advances the code as the leg progresses; the BAP uses it to drive the buyer-facing status display.
+
+message.order.items.price.value (action: select, gated_by descriptor.code === "TERM" inside LOAN_INFO)
+<<<i>>>
+Per-item rupee amount for the loan principal. The BPP rewrites this with the buyer's chosen request amount in select, and the value rides along when the saved order payload is replayed in confirm.
+
+message.order.tags.list.value (action: select, gated by descriptor.code === "TERM" inside LOAN_INFO)
+<<<i>>>
+Loan term in months. Set on the LOAN_INFO/TERM cell of the items tag-list when the buyer picks an offer; the BPP reads it back to compute repayment schedules.
+
+────────────────────────────────────────
+INPUT
+────────────────────────────────────────
 ${JSON.stringify(inputs, null, 2)}
+
+Now produce exactly ${inputs.length} blocks <<<1>>>..<<<${inputs.length}>>>.${correction}
 `;
 }
 
-function parseDraftJson(raw: string, expected: number): LeafDraft[] {
-    const fence = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+function parseDraftText(raw: string, expected: number): string[] {
+    // Tolerate accidental code fences.
+    const fence = raw.match(/```(?:\w+)?\s*([\s\S]*?)```/);
     const body = (fence ? fence[1] : raw).trim();
-    let parsed: unknown;
-    try {
-        parsed = JSON.parse(body);
-    } catch {
+    const re = /<<<\s*(\d+)\s*>>>\s*([\s\S]*?)(?=<<<\s*\d+\s*>>>|$)/g;
+    const blocks: { idx: number; text: string }[] = [];
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(body)) !== null) {
+        blocks.push({ idx: parseInt(m[1]!, 10), text: m[2]!.trim() });
+    }
+    if (blocks.length !== expected) {
         throw new Error(
-            `LLM did not return valid JSON. First 200 chars: ${raw.slice(0, 200).replace(/\s+/g, " ")}`,
+            `LLM returned ${blocks.length} blocks; expected ${expected}. First 200 chars: ${raw
+                .slice(0, 200)
+                .replace(/\s+/g, " ")}`,
         );
     }
-    if (!Array.isArray(parsed)) {
-        throw new Error("LLM response was not a JSON array");
+    blocks.sort((a, b) => a.idx - b.idx);
+    for (let i = 0; i < expected; i++) {
+        if (blocks[i]!.idx !== i + 1) {
+            throw new Error(`Block index mismatch at position ${i}: got ${blocks[i]!.idx}`);
+        }
     }
-    if (parsed.length !== expected) {
-        throw new Error(`LLM returned ${parsed.length} drafts; expected ${expected}`);
-    }
-    return parsed.map((p, i) => coerceLeaf(p, i));
+    return blocks.map((b) => b.text);
+}
+
+function deriveType(b: ContextBundle): string {
+    const vt = b.obs.valueType;
+    if (vt === "object" || vt === "array") return vt;
+    return vt || "string";
+}
+
+function buildDraftFromInfo(info: string, b: ContextBundle): LeafDraft {
+    return {
+        required: false,
+        usage: "",
+        info: info.trim(),
+        owner: "unknown",
+        type: deriveType(b),
+    };
 }
 
 /**
- * Re-anchor the LLM's output against existing_enums/tags we already know about.
- * This defends against the model dropping or renaming codes even when the
- * prompt tells it not to.
+ * Overlay enums/tags from existing onto the draft. The LLM no longer produces
+ * either — codes/shape come purely from existing.
  */
-function reconcileWithExisting(drafts: LeafDraft[], bundles: ContextBundle[]): LeafDraft[] {
+function applyExisting(drafts: LeafDraft[], bundles: ContextBundle[]): LeafDraft[] {
     for (let i = 0; i < drafts.length; i++) {
         const draft = drafts[i]!;
         const existing = bundles[i]?.existing ?? null;
         if (!existing) continue;
 
         if (existing.enums && existing.enums.length > 0) {
-            // Preserve existing codes/order; enrich description from LLM if the
-            // LLM produced a matching entry with non-empty description.
-            const llmByCode = new Map<string, EnumEntry>();
-            for (const e of draft.enums ?? []) llmByCode.set(e.code, e);
-            draft.enums = existing.enums.map((e) => {
-                const match = llmByCode.get(e.code);
-                return {
+            draft.enums = existing.enums.map(
+                (e): EnumEntry => ({
                     code: e.code,
-                    description: (e.description || match?.description || "").trim(),
-                    reference: e.reference || match?.reference || "",
-                };
-            });
-            if (draft.type !== "enum") draft.type = "enum";
+                    description: (e.description || "").trim(),
+                    reference: e.reference || "",
+                }),
+            );
+            draft.type = "enum";
         }
 
         if (existing.tags && existing.tags.length > 0) {
-            // Preserve existing tag codes/shape; enrich _description from LLM if available.
-            const llmByCode = new Map<string, TagEntry>();
-            for (const t of draft.tags ?? []) llmByCode.set(t.code, t);
-            draft.tags = existing.tags.map((t) => {
-                const match = llmByCode.get(t.code);
-                return {
+            draft.tags = existing.tags.map(
+                (t): TagEntry => ({
                     code: t.code,
                     _description: {
                         required: t._description.required,
-                        usage: t._description.usage || match?._description.usage || "",
-                        info: t._description.info || match?._description.info || "",
-                        owner: t._description.owner || match?._description.owner || "unknown",
-                        type: t._description.type || match?._description.type || "string",
+                        usage: t._description.usage || "",
+                        info: t._description.info || "",
+                        owner: t._description.owner || "unknown",
+                        type: t._description.type || "string",
                     },
                     list: t.list,
-                };
-            });
+                }),
+            );
         }
     }
     return drafts;
-}
-
-function coerceLeaf(v: unknown, idx: number): LeafDraft {
-    if (!v || typeof v !== "object") {
-        throw new Error(`Draft ${idx} is not an object`);
-    }
-    const o = v as Record<string, unknown>;
-    const required = typeof o["required"] === "boolean" ? o["required"] : true;
-    const usage = String(o["usage"] ?? "");
-    const info = String(o["info"] ?? "");
-    const owner = String(o["owner"] ?? "unknown");
-    const type = String(o["type"] ?? "string");
-    const draft: LeafDraft = { required, usage, info, owner, type };
-    if (Array.isArray(o["enums"])) {
-        draft.enums = (o["enums"] as unknown[])
-            .filter((e): e is Record<string, unknown> => !!e && typeof e === "object")
-            .map((e) => ({
-                code: String(e["code"] ?? ""),
-                description: String(e["description"] ?? ""),
-                reference: String(e["reference"] ?? ""),
-            }));
-    }
-    if (Array.isArray(o["tags"])) {
-        draft.tags = (o["tags"] as unknown[])
-            .filter((e): e is Record<string, unknown> => !!e && typeof e === "object")
-            .map((e) => {
-                const desc = (e["_description"] ?? {}) as Record<string, unknown>;
-                return {
-                    code: String(e["code"] ?? ""),
-                    _description: {
-                        required: Boolean(desc["required"]),
-                        usage: String(desc["usage"] ?? ""),
-                        info: String(desc["info"] ?? ""),
-                        owner: String(desc["owner"] ?? ""),
-                        type: String(desc["type"] ?? "string"),
-                    },
-                };
-            });
-    }
-    return draft;
 }
 
 function dummyDraft(b: ContextBundle, reason: string): LeafDraft {
@@ -423,6 +417,6 @@ function dummyDraft(b: ContextBundle, reason: string): LeafDraft {
         usage: "",
         info: `AUTO-FALLBACK (LLM failure: ${reason.slice(0, 80)}). Please edit in the review UI.`,
         owner: "unknown",
-        type: b.obs.valueType === "object" ? "object" : "string",
+        type: deriveType(b),
     };
 }

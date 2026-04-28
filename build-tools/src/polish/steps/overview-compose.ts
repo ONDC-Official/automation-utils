@@ -31,16 +31,18 @@ export const overviewComposeStep: PolishStep = {
 
         const prompt = `You are a technical documentation specialist writing the domain overview for an ONDC build config.
 
+Write so a developer new to ONDC understands what this domain does in the real economy before any technical detail. Lead with the sector, what's being transacted, and who transacts — not protocol mechanics.
+
 Compose the overview as a single markdown document. Start with the heading exactly:
 # ${domain} ${version} — Overview
 
-Include these sections (use \`##\` subheadings):
-- Summary (2-3 sentences, plain language)
-- Participants
+Include these sections (use \`##\` subheadings, in this order):
+- Summary (2-3 sentences, plain language — what this domain is and what it enables)
+- Sector & Purpose (the industry/sector and the problem solved)
+- Real-World Actors (the businesses/people who actually transact, in plain terms — not BAP/BPP boilerplate)
 - Use Cases (bulleted)
 - Key Concepts (bulleted, 3-5 items)
-- Deviations from Stock ONDC (skip if author said "none")
-- References (skip if blank)
+- Example Scenario (a concrete walkthrough grounded in the author's example)
 
 Use the author's answers verbatim where possible; expand with domain-appropriate phrasing. Do not invent facts outside the provided context. No trailing metadata, no code fences around the whole doc.
 
@@ -54,18 +56,18 @@ Flows:
 ${flowIds || "(none)"}
 
 Author answers:
-1. Problem this domain solves:
+1. Sector / industry:
+${answers.sector}
+2. Problem this domain solves:
 ${answers.problem}
-2. Primary participants:
-${answers.participants}
-3. Key use cases:
+3. Real-world actors who transact:
+${answers.realWorldActors}
+4. Key use cases:
 ${answers.usecases}
-4. Key concepts an integrator must understand:
+5. Key concepts an integrator must understand:
 ${answers.concepts}
-5. Deviations from stock ONDC:
-${answers.deviations}
-6. References / out-of-scope:
-${answers.references || "(blank)"}
+6. Concrete real-world example or scenario:
+${answers.examples}
 `;
 
         ui.spin("composing overview with LLM");

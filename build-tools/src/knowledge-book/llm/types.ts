@@ -23,7 +23,17 @@ export type OpenAICompatProviderConfig = {
     baseUrl: string;
 };
 
-export type LLMProviderConfig = AnthropicProviderConfig | OpenAICompatProviderConfig;
+export type ClaudeCodeProviderConfig = {
+    provider: "claude-code";
+    model: string;
+    /** Optional. If unset, the SDK falls back to the user's existing Claude Code login. */
+    apiKey?: string;
+};
+
+export type LLMProviderConfig =
+    | AnthropicProviderConfig
+    | OpenAICompatProviderConfig
+    | ClaudeCodeProviderConfig;
 
 export interface ILLMProvider {
     /** Send a minimal request to verify connectivity and auth before running the pipeline. */

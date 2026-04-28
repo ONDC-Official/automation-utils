@@ -69,19 +69,27 @@ export function createPolishCommand(): Command {
 
             const provider = opts.provider ?? process.env["AI_TYPE"] ?? "anthropic";
             const apiKey = opts.apiKey ?? process.env["AI_API_KEY"];
-            const model = opts.model ?? process.env["AI_MODEL"] ?? "claude-haiku-4-5-20251001";
 
-            if (!apiKey) {
+            if (
+                provider !== "anthropic" &&
+                provider !== "openai-compat" &&
+                provider !== "claude-code"
+            ) {
                 console.error(
-                    chalk.red(`\n  error: no API key — set AI_API_KEY or pass --api-key\n`),
+                    chalk.red(
+                        `\n  error: unknown provider "${provider}" — expected anthropic | openai-compat | claude-code\n`,
+                    ),
                 );
                 process.exit(1);
             }
-            if (provider !== "anthropic" && provider !== "openai-compat") {
+
+            const defaultModel =
+                provider === "claude-code" ? "claude-haiku-4-5" : "claude-haiku-4-5-20251001";
+            const model = opts.model ?? process.env["AI_MODEL"] ?? defaultModel;
+
+            if (!apiKey && provider !== "claude-code") {
                 console.error(
-                    chalk.red(
-                        `\n  error: unknown provider "${provider}" — expected anthropic or openai-compat\n`,
-                    ),
+                    chalk.red(`\n  error: no API key — set AI_API_KEY or pass --api-key\n`),
                 );
                 process.exit(1);
             }
@@ -90,7 +98,9 @@ export function createPolishCommand(): Command {
             const llm = createLLMProvider(
                 provider === "openai-compat"
                     ? { provider: "openai-compat", model, apiKey, baseUrl }
-                    : { provider: "anthropic", model, apiKey },
+                    : provider === "claude-code"
+                      ? { provider: "claude-code", model, apiKey }
+                      : { provider: "anthropic", model, apiKey: apiKey! },
             );
 
             const phaseFilter = (opts.phase ?? "all").toLowerCase();
@@ -120,11 +130,11 @@ export function createPolishCommand(): Command {
             } catch (err) {
                 const msg = err instanceof Error ? err.message : String(err);
                 ui.fail(`LLM preflight failed: ${msg}`);
-                console.error(
-                    chalk.dim(
-                        `\n  Hint: check AI_API_KEY, AI_BASE_URL, and AI_MODEL in your .env\n`,
-                    ),
-                );
+                const hint =
+                    provider === "claude-code"
+                        ? `\n  Hint: ensure you're logged into Claude Code (\`claude /login\`) or set AI_API_KEY. Check AI_MODEL.\n`
+                        : `\n  Hint: check AI_API_KEY, AI_BASE_URL, and AI_MODEL in your .env\n`;
+                console.error(chalk.dim(hint));
                 process.exit(1);
             }
 
