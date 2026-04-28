@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Polish Review</title>
+        <link rel="stylesheet" href="/static/style.css" />
+    </head>
+    <body>
+        <header id="topbar">
+            <div class="topbar-left">
+                <span id="title">Polish Review</span>
+                <span id="subtitle" class="dim"></span>
+            </div>
+            <div class="topbar-filters">
+                <input
+                    id="search"
+                    type="search"
+                    placeholder="Search (press /)"
+                    autocomplete="off"
+                />
+                <label><input type="checkbox" id="filter-low" /> low-confidence only</label>
+                <label><input type="checkbox" id="filter-unapproved" /> unapproved only</label>
+            </div>
+            <div class="topbar-right">
+                <span id="counter" class="dim"></span>
+                <button id="save" type="button">Save</button>
+                <button id="done" type="button" class="primary">Done</button>
+            </div>
+        </header>
+        <main id="app">
+            <div class="loading">Loading session…</div>
+        </main>
+        <div id="toast"></div>
+        <script type="module" src="/static/app.js"></script>
+    </body>
+</html>

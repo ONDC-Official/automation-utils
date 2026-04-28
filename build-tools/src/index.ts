@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import "dotenv/config";
 import { Command } from "commander";
 import { createMergeCommand } from "./commands/merge.js";
 import { createValidateCommand } from "./commands/validate.js";
@@ -8,6 +9,12 @@ import { createGenChangeLogsCommand } from "./commands/gen-change-logs.js";
 import { createGenRagTableCommand } from "./commands/gen-rag-table.js";
 import { createPushToDbCommand } from "./commands/push-to-db.js";
 import { createMdCommand } from "./commands/gen-markdowns.js";
+import {
+    createEnrichmentCommand,
+    createKnowledgeBookCommand,
+} from "./commands/gen-knowledge-book.js";
+import { createPolishCommand } from "./commands/polish.js";
+
 const program = new Command();
 
 program.name("ondc-tools").description("ONDC build toolchain CLI").version("1.0.0");
@@ -19,6 +26,9 @@ program.addCommand(createGenChangeLogsCommand());
 program.addCommand(createGenRagTableCommand());
 program.addCommand(createPushToDbCommand());
 program.addCommand(createMdCommand());
+program.addCommand(createKnowledgeBookCommand());
+program.addCommand(createEnrichmentCommand());
+program.addCommand(createPolishCommand());
 
 program.parseAsync(process.argv).catch((error: unknown) => {
     if (error instanceof NotImplementedError) {

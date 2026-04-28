@@ -60,7 +60,7 @@ function resolveRef(ref: string, baseDir: string): unknown {
  *   - Plain objects → each value is walked
  *   - Primitives → returned as-is
  */
-function resolveRefs(value: unknown, baseDir: string): unknown {
+export function resolveRefs(value: unknown, baseDir: string): unknown {
     if (value === null || typeof value !== "object") return value;
 
     // Array — each item that is a pure $ref gets resolved; others are walked
@@ -130,6 +130,20 @@ function isRefObject(v: unknown): v is RefObject {
         "$ref" in (v as object) &&
         Object.keys(v as object).length === 1
     );
+}
+
+/**
+ * Load a split-config directory and return the fully-merged document.
+ * Reads `<configDir>/index.yaml`, parses YAML, and recursively resolves $refs.
+ */
+export function loadSplitConfig(configDir: string): unknown {
+    const indexPath = join(configDir, "index.yaml");
+    if (!existsSync(indexPath)) {
+        throw new Error(`index.yaml not found in: ${configDir}`);
+    }
+    const raw = readFileSync(indexPath, "utf-8");
+    const doc = parseYaml(raw) as unknown;
+    return resolveRefs(doc, configDir);
 }
 
 // ─── Command ──────────────────────────────────────────────────────────────────

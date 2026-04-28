@@ -5,7 +5,10 @@
       "Bash(ls -la /Users/rudranshsinghal/ondc/new-dev-guide/build-tools/*.yaml)",
       "Read(//private/tmp/ondc-test-docs/**)",
       "Read(//private/tmp/ondc-test-docs/flows/**)",
-      "Read(//private/tmp/ondc-test-docs/attributes/**)"
+      "Read(//private/tmp/ondc-test-docs/attributes/**)",
+      "Bash(grep -r '\\\\$ref' /Users/rudranshsinghal/ondc/new-dev-guide/formatted-configs/nic2004:60232/1.2.0/config '--include=*.yaml')",
+      "Bash(cat)",
+      "Bash(node /tmp/decode.js)"
     ],
     "additionalDirectories": [
       "/Users/rudranshsinghal/ondc/new-dev-guide/build-tools/src/commands"
