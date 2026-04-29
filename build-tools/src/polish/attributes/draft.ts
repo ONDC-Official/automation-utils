@@ -1,34 +1,13 @@
 import type { ILLMProvider } from "../../knowledge-book/llm/types.js";
 import type { ContextBundle, EnumEntry, LeafDraft, TagEntry } from "./types.js";
 
-export const BATCH_SIZE = 30;
 const RETRY_ATTEMPTS = 1;
 
 export type BatchEvent =
-    | { kind: "start"; batchIndex: number; batches: number; size: number }
-    | {
-          kind: "ok";
-          batchIndex: number;
-          batches: number;
-          size: number;
-          attempt: number;
-          elapsedMs: number;
-      }
-    | {
-          kind: "retry";
-          batchIndex: number;
-          batches: number;
-          size: number;
-          attempt: number;
-          reason: string;
-      }
-    | {
-          kind: "fallback";
-          batchIndex: number;
-          batches: number;
-          size: number;
-          reason: string;
-      };
+    | { kind: "start" }
+    | { kind: "ok"; attempt: number; elapsedMs: number }
+    | { kind: "retry"; attempt: number; reason: string }
+    | { kind: "fallback"; reason: string };
 
 export type BatchEventHandler = (ev: BatchEvent) => void;
 
@@ -89,61 +68,42 @@ export async function draftLeaves(
     onEvent?: BatchEventHandler,
 ): Promise<LeafDraft[]> {
     const drafts: LeafDraft[] = [];
-    const batches = Math.max(1, Math.ceil(items.length / BATCH_SIZE));
-    for (let i = 0, b = 0; i < items.length; i += BATCH_SIZE, b++) {
-        const batch = items.slice(i, i + BATCH_SIZE);
-        const size = batch.length;
-        onEvent?.({ kind: "start", batchIndex: b, batches, size });
-
-        const inputs = batch.map(itemToLLMInput);
-        const bundles = batch.map((it) => it.bundle);
-        const { drafts: batchDrafts } = await draftBatchWithRetry(llm, bundles, inputs, (ev) =>
-            onEvent?.({
-                ...ev,
-                batchIndex: b,
-                batches,
-                size,
-            }),
-        );
-        drafts.push(...batchDrafts);
+    for (const item of items) {
+        const draft = await draftOneWithRetry(llm, item, onEvent);
+        drafts.push(draft);
     }
     return drafts;
 }
 
-type InnerEvent =
-    | { kind: "ok"; attempt: number; elapsedMs: number }
-    | { kind: "retry"; attempt: number; reason: string }
-    | { kind: "fallback"; reason: string };
-
-async function draftBatchWithRetry(
+async function draftOneWithRetry(
     llm: ILLMProvider,
-    bundles: ContextBundle[],
-    inputs: LLMInputAttr[],
-    onEvent: (ev: InnerEvent) => void,
-): Promise<{ drafts: LeafDraft[] }> {
+    item: DraftItem,
+    onEvent?: BatchEventHandler,
+): Promise<LeafDraft> {
+    onEvent?.({ kind: "start" });
+    const input = itemToLLMInput(item);
+    const bundle = item.bundle;
     let lastReason = "";
     for (let attempt = 0; attempt <= RETRY_ATTEMPTS; attempt++) {
         const started = Date.now();
-        const prompt = buildPrompt(inputs, attempt > 0 ? lastReason : "");
+        const prompt = buildPrompt([input], attempt > 0 ? lastReason : "");
         try {
             const raw = await llm.complete([{ role: "user", content: prompt }]);
-            const infos = parseDraftText(raw, bundles.length);
-            const drafts = infos.map((info, i) => buildDraftFromInfo(info, bundles[i]!));
-            const reconciled = applyExisting(drafts, bundles);
-            onEvent({ kind: "ok", attempt, elapsedMs: Date.now() - started });
-            return { drafts: reconciled };
+            const info = parseDraftText(raw);
+            const draft = applyExisting([buildDraftFromInfo(info, bundle)], [bundle])[0]!;
+            onEvent?.({ kind: "ok", attempt, elapsedMs: Date.now() - started });
+            return draft;
         } catch (err) {
             lastReason = err instanceof Error ? err.message : String(err);
             if (attempt < RETRY_ATTEMPTS) {
-                onEvent({ kind: "retry", attempt: attempt + 1, reason: lastReason });
+                onEvent?.({ kind: "retry", attempt: attempt + 1, reason: lastReason });
                 continue;
             }
-            onEvent({ kind: "fallback", reason: lastReason });
-            return { drafts: bundles.map((b) => dummyDraft(b, lastReason)) };
+            onEvent?.({ kind: "fallback", reason: lastReason });
+            return dummyDraft(bundle, lastReason);
         }
     }
-    // unreachable
-    return { drafts: bundles.map((b) => dummyDraft(b, lastReason)) };
+    return dummyDraft(bundle, lastReason);
 }
 
 export function itemToLLMInput(it: DraftItem): LLMInputAttr {
@@ -223,136 +183,101 @@ export function itemToLLMInput(it: DraftItem): LLMInputAttr {
 }
 
 export function buildPrompt(inputs: LLMInputAttr[], retryReason: string): string {
+    const input = inputs[0]!;
     const correction = retryReason
-        ? `\n\nPREVIOUS ATTEMPT FAILED: ${retryReason}\nReturn EXACTLY ${inputs.length} blocks <<<1>>>..<<<${inputs.length}>>> in input order. Plain text, no JSON, no markdown, no code fences.`
+        ? `\n\nPREVIOUS ATTEMPT FAILED: ${retryReason}\nReturn plain text only — no JSON, no markdown, no code fences, no quoting.`
         : "";
 
-    return `You are an ONDC protocol documentation writer. Your audience is a partner integrator (BAP or BPP engineer) implementing this action for the first time. For each attribute, teach them what it means in the ONDC domain, what THIS action does with it, and any non-obvious constraint — anchored in the evidence provided.
+    return `You are an ONDC protocol documentation writer. Your audience is a partner integrator (BAP or BPP engineer) implementing this action for the first time. Teach them what this attribute means in the ONDC domain, what THIS action does with it, and any non-obvious constraint — anchored in the evidence provided.
 
-────────────────────────────────────────
-OUTPUT FORMAT
-────────────────────────────────────────
-For ${inputs.length} inputs, return EXACTLY ${inputs.length} blocks in input order:
+OUTPUT
+- Plain text only. NO JSON, NO markdown, NO code fences, NO surrounding quotes.
+- Preferred 1–2 sentences; up to 7 sentences if the evidence genuinely warrants more detail.
+- Output ONLY the description text — no preamble, no labels, no path restatement.
+- If tiers 1–7 carry no signal, output EXACTLY the literal token: <no-enough-data> — nothing else, no quotes, no preamble, no explanation.
+- You write ONLY the info string. enums, tags, type, required, usage, owner are filled in automatically — do not produce them.
 
-<<<1>>>
-<info text>
-<<<2>>>
-<info text>
-...
-<<<${inputs.length}>>>
-<info text>
-
-- Each block body: 1–2 sentences, ≤ 280 characters, no line breaks inside the body.
-- Plain text only. NO JSON. NO markdown. NO surrounding quotes. NO code fences.
-- No prose before <<<1>>>. No prose after the last block.
-- If you have NO usable evidence for an input, leave that block body empty (just the marker line followed by a blank line).
-
-You write ONLY the info string. enums, tags, type, required, usage, owner are filled in automatically by post-processing — do not produce them, do not reference them.
-
-────────────────────────────────────────
-ACTION-AWARE FRAMING (use the input's \`action\` field)
-────────────────────────────────────────
-- BAP-side actions (search, select, init, confirm, update, cancel, status, track, rating, support): the BAP writes the request. Describe what the BAP places here and why.
-- BPP-side actions (on_search, on_select, on_init, on_confirm, on_update, on_cancel, on_status, on_track, on_rating, on_support): the BPP writes the response. Describe what the BPP returns and how the BAP consumes it.
-- When \`cross_flow.set_in_generate && cross_flow.asserted_in_validate\`, name the round-trip explicitly (e.g. "BAP mints on init; BPP echoes in on_init").
+ACTION-AWARE FRAMING (use the \`action\` field)
+- BAP-side actions (search, select, init, confirm, update, cancel, status, track, rating, support): BAP writes the request — describe what the BAP places here and why.
+- BPP-side actions (on_search, on_select, on_init, on_confirm, on_update, on_cancel, on_status, on_track, on_rating, on_support): BPP writes the response — describe what the BPP returns and how the BAP consumes it.
+- When \`cross_flow.set_in_generate && cross_flow.asserted_in_validate\`, name the round-trip (e.g. "BAP mints on init; BPP echoes in on_init").
 - When \`cross_flow.persisted_key\` is set and \`consumed_across_steps\` is true, mention that the value is anchored in session and reused by later steps.
 
-────────────────────────────────────────
 CONTAINER RULE (when \`is_leaf\` is false)
-────────────────────────────────────────
-- Write ONE sentence about the role of the container in the message at this action.
-- Do NOT enumerate child fields, list keys, or describe the schema shape.
-- Do NOT invent purpose. If openapi and existing_leaf carry no description and refs only show structural traversal, return an empty body for that block.
+- Write ONE sentence about the role of the container in the message at this action. Do NOT enumerate child fields or describe the schema shape. If openapi and existing_leaf carry no description and refs only show structural traversal, return empty.
 
-────────────────────────────────────────
-EVIDENCE PRECEDENCE — when sources conflict, the higher tier wins
-────────────────────────────────────────
-1. \`openapi.description\` / \`openapi.custom\` — authoritative ONDC spec text. Use first.
-2. \`existing_leaf.info\` — prior curated text. If specific and correct, rephrase concisely. If generic, vague, ungrammatical, or contradicted by openapi, REWRITE rather than preserve.
-3. \`referenced_in\` — code refs. \`role\` = read|write|delete; \`gated_by\` = the predicate gating the operation (e.g. \`tag.descriptor.code === "LOAN_INFO"\`). If \`gated_by\` is present, mention the gate exactly once.
-4. \`save_data\` — \`inherited:true\` means the attribute travels inside an ancestor object stored under \`ancestor_jsonpath\`. Mention persistence only when it is the most informative signal.
-5. \`session_reads\` — \`origin_action\` + \`origin_path\` show upstream provenance ("seeded from the order persisted by select").
-6. \`gated_writes\` — derived shortlist of write sites with their gating predicate. Prefer over \`referenced_in\` when describing gating.
-7. \`cross_flow\` — see ACTION-AWARE FRAMING above.
-8. \`sample_values\` / \`most_common_value\` — illustrative only. NEVER the primary basis for info, and never quoted in the body.
+EVIDENCE PRECEDENCE (higher tier wins on conflict)
+1. \`openapi.description\` / \`openapi.custom\` — authoritative ONDC spec text.
+2. \`existing_leaf.info\` — prior curated text. Rephrase if good; rewrite if generic/vague/contradicted.
+3. \`referenced_in\` — code refs. \`role\` = read|write|delete; \`gated_by\` = the predicate gating the operation. If \`gated_by\` present, mention the gate once.
+4. \`save_data\` — \`inherited:true\` means the attribute travels inside an ancestor stored under \`ancestor_jsonpath\`. Mention persistence only when it is the most informative signal.
+5. \`session_reads\` — \`origin_action\` + \`origin_path\` show upstream provenance.
+6. \`gated_writes\` — derived shortlist of write sites with gating predicate; prefer over raw \`referenced_in\` when describing gating.
+7. \`cross_flow\` — see ACTION-AWARE FRAMING.
+8. \`sample_values\` / \`most_common_value\` — illustrative only, never primary basis, never quoted.
 
-If tiers 1–7 carry no signal, return an empty body.
+If tiers 1–7 carry no signal, output EXACTLY <no-enough-data>.
 
-────────────────────────────────────────
 FORBIDDEN
-────────────────────────────────────────
-- Restating the path. Bad: "context.transaction_id is the transaction_id under context."
-- Sample/example values inside the body.
+- Restating the path.
+- Quoting sample/example values.
 - Claims about required/optional, type, or owner.
 - Invented constraints, formats, or relationships not in the evidence.
-- Generic ONDC boilerplate ("part of the ONDC protocol", "used in ONDC transactions"). Be specific about THIS attribute.
+- Generic ONDC boilerplate ("part of the ONDC protocol"). Be specific about THIS attribute.
 - Enumerating child fields when is_leaf is false.
 - Producing enum codes, tag codes, or any structured list.
+- Substituting any alternative phrasing for <no-enough-data> (e.g. "I don't have enough data", empty string, "no data available", "insufficient evidence"). Use the EXACT token <no-enough-data> and nothing else when evidence is missing.
 
-────────────────────────────────────────
-EXAMPLES (input path → output body)
-────────────────────────────────────────
+EXAMPLES (input → output)
 context.transaction_id (action: search)
-<<<i>>>
 Stable identifier shared across every message of one ONDC transaction. The BAP mints it on the first request and every later request and response carries the same value so participants can correlate the chain.
 
-message.intent.category.id (action: search)
-<<<i>>>
-Domain-specific category code identifying which ONDC catalog branch the buyer is searching against. Sellers use it to filter their catalog before responding.
-
 message.order.fulfillments (action: on_confirm, is_leaf: false)
-<<<i>>>
 Ordered list of fulfillment plans the BPP intends to perform for this order, each describing a delivery, pickup, or service leg.
 
-message.order.billing (action: init, is_leaf: false)
-<<<i>>>
-Buyer billing details the BAP submits so the BPP can issue an invoice; carried through to confirm and on_confirm unchanged.
-
-message.order.fulfillments.state.descriptor.code (action: on_status, existing_enums present)
-<<<i>>>
-Lifecycle state of this fulfillment leg. The BPP advances the code as the leg progresses; the BAP uses it to drive the buyer-facing status display.
-
 message.order.items.price.value (action: select, gated_by descriptor.code === "TERM" inside LOAN_INFO)
-<<<i>>>
 Per-item rupee amount for the loan principal. The BPP rewrites this with the buyer's chosen request amount in select, and the value rides along when the saved order payload is replayed in confirm.
 
-message.order.tags.list.value (action: select, gated by descriptor.code === "TERM" inside LOAN_INFO)
-<<<i>>>
-Loan term in months. Set on the LOAN_INFO/TERM cell of the items tag-list when the buyer picks an offer; the BPP reads it back to compute repayment schedules.
-
-────────────────────────────────────────
 INPUT
-────────────────────────────────────────
-${JSON.stringify(inputs, null, 2)}
+${JSON.stringify(input, null, 2)}
 
-Now produce exactly ${inputs.length} blocks <<<1>>>..<<<${inputs.length}>>>.${correction}
+Now produce the description.${correction}
 `;
 }
 
-function parseDraftText(raw: string, expected: number): string[] {
+export const NO_DATA_SENTINEL = "<no-enough-data>";
+
+function parseDraftText(raw: string): string {
     // Tolerate accidental code fences.
     const fence = raw.match(/```(?:\w+)?\s*([\s\S]*?)```/);
-    const body = (fence ? fence[1] : raw).trim();
-    const re = /<<<\s*(\d+)\s*>>>\s*([\s\S]*?)(?=<<<\s*\d+\s*>>>|$)/g;
-    const blocks: { idx: number; text: string }[] = [];
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(body)) !== null) {
-        blocks.push({ idx: parseInt(m[1]!, 10), text: m[2]!.trim() });
-    }
-    if (blocks.length !== expected) {
-        throw new Error(
-            `LLM returned ${blocks.length} blocks; expected ${expected}. First 200 chars: ${raw
-                .slice(0, 200)
-                .replace(/\s+/g, " ")}`,
-        );
-    }
-    blocks.sort((a, b) => a.idx - b.idx);
-    for (let i = 0; i < expected; i++) {
-        if (blocks[i]!.idx !== i + 1) {
-            throw new Error(`Block index mismatch at position ${i}: got ${blocks[i]!.idx}`);
-        }
-    }
-    return blocks.map((b) => b.text);
+    const body = (fence ? fence[1]! : raw).trim();
+    // Strip surrounding quotes if the model added them.
+    const dequoted = body.replace(/^["'`]|["'`]$/g, "").trim();
+    if (dequoted === NO_DATA_SENTINEL) return NO_DATA_SENTINEL;
+    return dequoted;
+}
+
+export async function paraphraseUserDescription(
+    llm: ILLMProvider,
+    args: { path: string; action: string; userText: string },
+): Promise<string> {
+    const prompt = `You are an ONDC protocol documentation writer.
+Rewrite the developer's note below into a 1–2 sentence ONDC-style description for attribute "${args.path}" in action "${args.action}".
+
+ACTION-AWARE FRAMING
+- BAP-side actions (search, select, init, confirm, update, cancel, status, track, rating, support): BAP writes the request — describe what the BAP places here and why.
+- BPP-side actions (on_search, on_select, on_init, on_confirm, on_update, on_cancel, on_status, on_track, on_rating, on_support): BPP writes the response, BAP consumes.
+
+OUTPUT
+- Plain text only. NO JSON, markdown, code fences, or surrounding quotes.
+- 1–2 sentences. Specific to THIS attribute. No path restatement, no boilerplate, no preamble.
+
+DEVELOPER NOTE
+${args.userText}
+
+Now produce the description.`;
+    const raw = await llm.complete([{ role: "user", content: prompt }]);
+    return parseDraftText(raw);
 }
 
 function deriveType(b: ContextBundle): string {

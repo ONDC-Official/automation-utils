@@ -122,6 +122,26 @@ export function createPolishCommand(): Command {
                 model,
                 ...(limits ? { testMode: limits } : {}),
             });
+            console.log(chalk.dim("  Press Ctrl+C at any time to abort.\n"));
+
+            let cancelling = false;
+            const onSigint = (): void => {
+                if (cancelling) {
+                    process.stdout.write("\n  forcing exit…\n");
+                    process.exit(130);
+                }
+                cancelling = true;
+                ui.stopSpinner();
+                console.log(
+                    "\n" +
+                        chalk.yellow.bold("  ⚠ cancelled by user (Ctrl+C).") +
+                        chalk.dim(" partial output may remain in ") +
+                        chalk.underline.white(outputDir) +
+                        "\n",
+                );
+                process.exit(130);
+            };
+            process.on("SIGINT", onSigint);
 
             ui.spin(`checking LLM connection (${provider} / ${model})`);
             try {

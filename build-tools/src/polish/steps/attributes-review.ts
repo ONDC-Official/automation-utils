@@ -104,6 +104,7 @@ export const attributesReviewStep: PolishStep = {
             session,
             writeBack: (s) => persist(reviewDir, s as AttributesReviewSession),
             ui,
+            llm: ctx.llm,
         })) as AttributesReviewSession;
 
         const approved = new Map<string, LeafDraft>();

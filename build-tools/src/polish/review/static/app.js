@@ -67,9 +67,9 @@ function applyFilters() {
         c.el.classList.toggle("hidden", !show);
         if (show) visible += 1;
     }
-    // collapse empty groups
+    // collapse empty groups (cards for flow view, table rows for attribute view)
     for (const g of document.querySelectorAll(".group")) {
-        const anyVisible = g.querySelector(".card:not(.hidden)");
+        const anyVisible = g.querySelector(".card:not(.hidden), tr.row:not(.hidden)");
         g.classList.toggle("hidden", !anyVisible);
     }
     if (visible === 0) {
@@ -130,9 +130,31 @@ async function done() {
     }
 }
 
+function approveAllVisible() {
+    const visible = state.cards.filter((c) => !c.el.classList.contains("hidden"));
+    if (visible.length === 0) {
+        toast("nothing visible to approve");
+        return;
+    }
+    const pending = visible.filter((c) => !c.entry.approved);
+    if (pending.length === 0) {
+        toast("all visible already approved");
+        return;
+    }
+    if (!confirm(`Approve ${pending.length} visible entries?`)) return;
+    for (const c of pending) {
+        c.entry.approved = true;
+        const box = c.el.querySelector('input[type="checkbox"].approve');
+        if (box) box.checked = true;
+    }
+    updateCounter();
+    toast(`approved ${pending.length}`, "ok");
+}
+
 function wireToolbar() {
     $("#save").addEventListener("click", save);
     $("#done").addEventListener("click", done);
+    $("#approve-all").addEventListener("click", approveAllVisible);
     $("#search").addEventListener("input", (e) => {
         state.filter.search = e.target.value;
         applyFilters();
@@ -177,8 +199,14 @@ function wireToolbar() {
             }
         } else if (e.key === "e") {
             if (state.focusedIdx >= 0) {
-                const d = state.cards[state.focusedIdx].el.querySelector("details.context");
-                if (d) d.open = !d.open;
+                const card = state.cards[state.focusedIdx];
+                const expandBtn = card.el.querySelector(".expand-btn");
+                if (expandBtn) {
+                    expandBtn.click();
+                } else {
+                    const d = card.el.querySelector("details.context");
+                    if (d) d.open = !d.open;
+                }
             }
         } else if (e.key === "/") {
             e.preventDefault();

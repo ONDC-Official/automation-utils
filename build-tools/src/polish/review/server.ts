@@ -7,6 +7,8 @@ import { confirm } from "@inquirer/prompts";
 import chalk from "chalk";
 import type { ConsoleUI } from "../ui.js";
 import type { ReviewSession } from "./types.js";
+import type { ILLMProvider } from "../../knowledge-book/llm/types.js";
+import { paraphraseUserDescription } from "../attributes/draft.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -120,6 +122,7 @@ export type RunReviewServerArgs = {
     session: ReviewSession;
     writeBack: (session: ReviewSession) => void;
     ui: ConsoleUI;
+    llm?: ILLMProvider;
 };
 
 export async function runReviewServer(args: RunReviewServerArgs): Promise<ReviewSession> {
@@ -169,6 +172,39 @@ export async function runReviewServer(args: RunReviewServerArgs): Promise<Review
                     sendJson(res, 200, { ok: true });
                 } catch (err) {
                     sendJson(res, 400, {
+                        ok: false,
+                        error: err instanceof Error ? err.message : String(err),
+                    });
+                }
+                return;
+            }
+            if (req.method === "POST" && url.pathname === "/api/paraphrase") {
+                if (!args.llm) {
+                    sendJson(res, 501, { ok: false, error: "llm not wired into review server" });
+                    return;
+                }
+                const body = await readBody(req);
+                try {
+                    const parsed = JSON.parse(body) as {
+                        path?: string;
+                        action?: string;
+                        userText?: string;
+                    };
+                    const path = parsed.path ?? "";
+                    const action = parsed.action ?? "";
+                    const userText = (parsed.userText ?? "").trim();
+                    if (!userText) {
+                        sendJson(res, 400, { ok: false, error: "empty userText" });
+                        return;
+                    }
+                    const info = await paraphraseUserDescription(args.llm, {
+                        path,
+                        action,
+                        userText,
+                    });
+                    sendJson(res, 200, { ok: true, info });
+                } catch (err) {
+                    sendJson(res, 500, {
                         ok: false,
                         error: err instanceof Error ? err.message : String(err),
                     });

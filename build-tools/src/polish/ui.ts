@@ -61,6 +61,7 @@ export class ConsoleUI {
             prefixText: INDENT,
             color: "cyan",
             spinner: "dots",
+            discardStdin: false,
         }).start();
     }
 

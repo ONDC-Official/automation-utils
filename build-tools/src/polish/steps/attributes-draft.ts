@@ -1,8 +1,9 @@
 import type { PolishStep } from "../types.js";
-import { draftLeaves, type BatchEvent, type DraftItem } from "../attributes/draft.js";
+import { draftLeaves, NO_DATA_SENTINEL, type BatchEvent, type DraftItem } from "../attributes/draft.js";
 import type { DedupGroup, LeafDraft } from "../attributes/types.js";
 import { deriveOwner, deriveRequired, deriveType, deriveUsage } from "../attributes/dedup.js";
 import { getConcurrency, runWithConcurrency } from "../review/concurrency.js";
+import { createParaphraseController } from "../review/paraphrase-server.js";
 
 type GroupUnit = {
     items: DraftItem[];
@@ -62,6 +63,11 @@ export const attributesDraftStep: PolishStep = {
 
         ui.spin(`groups 0/${tally.unitsTotal} · inflight 0`);
 
+        // Sentinel paraphrase queue served via browser UI. Lazy-starts a server
+        // when the first <no-enough-data> draft arrives. Drafting never blocks.
+        const paraphrase = createParaphraseController(ctx.llm, ui);
+        let sentinelSeen = 0;
+
         const drafts = new Map<string, Map<string, LeafDraft[]>>();
         const sizeMap = new Map<string, Map<string, number>>();
         for (const g of groups) {
@@ -112,6 +118,18 @@ export const attributesDraftStep: PolishStep = {
             try {
                 const arr = await draftLeaves(ctx.llm, u.items, onEvent);
                 const repDraft = arr[0]!;
+                const infoText = (repDraft.info ?? "").trim();
+                if (infoText) {
+                    ui.note(`✎ ${repPath}`, "cyan");
+                    ui.note(`  "${infoText}"`, "dim");
+                } else {
+                    ui.note(`✎ ${repPath} — (empty draft, no usable evidence)`, "yellow");
+                }
+                const extras: string[] = [];
+                if (repDraft.enums?.length) extras.push(`${repDraft.enums.length} enum(s)`);
+                if (repDraft.tags?.length) extras.push(`${repDraft.tags.length} tag(s)`);
+                if (extras.length) ui.note(`  + ${extras.join(" · ")}`, "dim");
+                const memberDrafts: LeafDraft[] = [];
                 for (const m of u.group.members) {
                     const total = flowsPerAction?.get(m.action) ?? 0;
                     const cloned: LeafDraft = {
@@ -124,6 +142,15 @@ export const attributesDraftStep: PolishStep = {
                     if (repDraft.enums) cloned.enums = repDraft.enums.map((e) => ({ ...e }));
                     if (repDraft.tags) cloned.tags = repDraft.tags.map((t) => ({ ...t }));
                     drafts.get(m.uc)!.get(m.action)![m.index] = cloned;
+                    memberDrafts.push(cloned);
+                }
+                if (infoText === NO_DATA_SENTINEL) {
+                    sentinelSeen++;
+                    paraphrase.push({
+                        path: repPath,
+                        action: u.group.members[0]!.action,
+                        drafts: memberDrafts,
+                    });
                 }
                 const elapsed = Date.now() - started;
                 ui.note(
@@ -134,9 +161,22 @@ export const attributesDraftStep: PolishStep = {
             } finally {
                 tally.inflight--;
                 tally.unitsDone++;
+                paraphrase.setProgress({
+                    unitsDone: tally.unitsDone,
+                    unitsTotal: tally.unitsTotal,
+                });
                 refreshSpinner();
             }
         });
+
+        paraphrase.setDraftingDone();
+        if (sentinelSeen > 0) {
+            ui.spin(
+                `drafting complete · waiting for ${sentinelSeen} paraphrase(s) in browser — click "Continue to review" when done`,
+            );
+        }
+        await paraphrase.waitForFinalize();
+        await paraphrase.shutdown();
 
         for (const [, am] of drafts) {
             for (const [action, arr] of am) {
@@ -157,7 +197,8 @@ export const attributesDraftStep: PolishStep = {
         ui.succeed(
             `drafted ${totalGroups} group(s) → ${totalMembers} attribute(s)` +
                 (tally.retries ? ` · ${tally.retries} retry(ies)` : "") +
-                (tally.fallbacks ? ` · ${tally.fallbacks} fallback group(s)` : ""),
+                (tally.fallbacks ? ` · ${tally.fallbacks} fallback group(s)` : "") +
+                (sentinelSeen ? ` · ${sentinelSeen} sentinel(s) routed through paraphrase UI` : ""),
         );
         if (tally.fallbacks > 0) {
             ui.warn(

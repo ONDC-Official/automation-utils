@@ -52,20 +52,30 @@ export const flowsWriteStep: PolishStep = {
             }
         }
 
-        // ── step-level: rewrite each flow YAML ──────────────────────────────
-        if (approved.stepLevel.size > 0) {
-            const byFlow = new Map<string, Map<number, string>>();
-            for (const [key, draft] of approved.stepLevel) {
-                if (!draft.description) continue;
-                const [flowId, idxStr] = key.split("::");
-                const idx = Number(idxStr);
-                if (!flowId || !Number.isFinite(idx)) continue;
-                if (!byFlow.has(flowId)) byFlow.set(flowId, new Map());
-                byFlow.get(flowId)!.set(idx, draft.description);
-            }
+        // ── per-flow files: write step-level descriptions AND mirror the
+        //    approved flow-level description into the file's meta.description.
+        //    A flow YAML is opened if it has step approvals, flow-level
+        //    approval, or both.
+        const stepByFlow = new Map<string, Map<number, string>>();
+        for (const [key, draft] of approved.stepLevel) {
+            if (!draft.description) continue;
+            const [flowId, idxStr] = key.split("::");
+            const idx = Number(idxStr);
+            if (!flowId || !Number.isFinite(idx)) continue;
+            if (!stepByFlow.has(flowId)) stepByFlow.set(flowId, new Map());
+            stepByFlow.get(flowId)!.set(idx, draft.description);
+        }
 
+        const flowIdsToWrite = new Set<string>([
+            ...stepByFlow.keys(),
+            ...Array.from(approved.flowLevel.keys()).filter(
+                (id) => approved.flowLevel.get(id)?.description,
+            ),
+        ]);
+
+        if (flowIdsToWrite.size > 0) {
             const fileByFlowId = resolveFlowFiles(flowsDir);
-            for (const [flowId, descByIdx] of byFlow) {
+            for (const flowId of flowIdsToWrite) {
                 const filePath = fileByFlowId.get(flowId);
                 if (!filePath) {
                     ui.warn(`flow "${flowId}" not found under ${flowsDir} — skipping`);
@@ -73,14 +83,31 @@ export const flowsWriteStep: PolishStep = {
                 }
                 const raw = readFileSync(filePath, "utf-8");
                 const doc = parseYaml(raw) as {
+                    meta?: { description?: string };
                     steps?: Array<{ description?: string }>;
                 };
-                const steps = doc.steps ?? [];
-                for (const [idx, desc] of descByIdx) {
-                    const s = steps[idx];
-                    if (!s) continue;
-                    s.description = desc;
+
+                let touched = false;
+
+                const flowDesc = approved.flowLevel.get(flowId)?.description;
+                if (flowDesc) {
+                    if (!doc.meta) doc.meta = {};
+                    doc.meta.description = flowDesc;
+                    touched = true;
                 }
+
+                const descByIdx = stepByFlow.get(flowId);
+                if (descByIdx) {
+                    const steps = doc.steps ?? [];
+                    for (const [idx, desc] of descByIdx) {
+                        const s = steps[idx];
+                        if (!s) continue;
+                        s.description = desc;
+                        touched = true;
+                    }
+                }
+
+                if (!touched) continue;
                 writeFileSync(filePath, stringifyYaml(doc, { lineWidth: 0 }), "utf-8");
                 ui.path(flowId, filePath);
                 flowFileUpdates++;
@@ -88,7 +115,8 @@ export const flowsWriteStep: PolishStep = {
         }
 
         ui.succeed(
-            `updated ${flowsIndexUpdates} flow description(s) in index + ${flowFileUpdates} flow file(s)`,
+            `updated ${flowsIndexUpdates} flow description(s) in index + ${flowFileUpdates} flow file(s) ` +
+                `(${approved.flowLevel.size} flow-level + ${approved.stepLevel.size} step-level approvals)`,
         );
     },
 };

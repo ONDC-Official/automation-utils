@@ -1,6 +1,5 @@
 import type { PolishStep } from "../types.js";
 import { collectFlowRefs, collectStepRefs } from "../flows/context.js";
-import { isDescriptionStub } from "../flows/detect.js";
 import type { FlowStepRef, FlowLevelRef } from "../flows/types.js";
 import { BuildConfig } from "../../types/build-type.js";
 import { loadSplitConfig } from "../../commands/merge.js";
@@ -12,7 +11,7 @@ export type FlowDescNeeders = {
 
 export const flowsDetectStep: PolishStep = {
     id: "flows-detect",
-    title: "Detect flow/step descriptions that need drafting",
+    title: "Collect flow/step descriptions to draft",
     async run(ctx) {
         const { ui } = ctx;
 
@@ -27,17 +26,15 @@ export const flowsDetectStep: PolishStep = {
         }
         ctx.state["flowsEffectiveConfig"] = effective;
 
-        ui.spin("scanning flows for stub descriptions");
+        ui.spin("collecting all flows + steps");
         const allFlows = collectFlowRefs(effective);
         const allSteps = collectStepRefs(effective);
 
-        const flowNeeders = allFlows.filter((f) => isDescriptionStub(f.currentDescription));
-        const stepNeeders = allSteps.filter((s) => isDescriptionStub(s.currentDescription));
+        const flowNeeders = allFlows;
+        const stepNeeders = allSteps;
 
         ui.stat("flows total", allFlows.length);
-        ui.stat("flows needing desc", flowNeeders.length);
         ui.stat("steps total", allSteps.length);
-        ui.stat("steps needing desc", stepNeeders.length);
 
         const limitRaw = process.env["POLISH_FLOW_LIMIT"];
         let flows = flowNeeders;

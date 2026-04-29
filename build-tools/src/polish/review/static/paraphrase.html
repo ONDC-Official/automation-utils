@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Polish · Paraphrase Queue</title>
+        <link rel="stylesheet" href="/static/style.css" />
+        <link rel="stylesheet" href="/static/paraphrase.css" />
+    </head>
+    <body>
+        <header id="topbar">
+            <div class="topbar-left">
+                <span id="title">Paraphrase Queue</span>
+                <span id="subtitle" class="dim">attributes with no evidence</span>
+            </div>
+            <div class="topbar-filters">
+                <span id="drafting-status" class="dim">drafting…</span>
+            </div>
+            <div class="topbar-right">
+                <span id="counter" class="dim"></span>
+                <button id="continue" type="button" class="primary" disabled>
+                    Continue to review
+                </button>
+            </div>
+        </header>
+        <main id="app">
+            <div id="empty-state" class="loading">
+                Waiting for sentinel attributes…<br />
+                <span class="dim"
+                    >drafting is running. Items appear here as the LLM flags
+                    &lt;no-enough-data&gt;.</span
+                >
+            </div>
+            <div id="queue"></div>
+        </main>
+        <div id="toast"></div>
+        <script type="module" src="/static/paraphrase.js"></script>
+    </body>
+</html>
