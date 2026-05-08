@@ -19,17 +19,50 @@ export type LeafLike = {
 };
 
 /**
- * A leaf is "incomplete" when any of its core text fields is empty,
- * a known placeholder marker, or suspiciously short.
+ * Leniency controls how aggressively a leaf is flagged for re-generation.
+ *
+ * - `strict`  : only flag when the leaf is missing or entirely empty. Use on
+ *               re-runs to skip anything that was already generated, even if
+ *               its content looks short or placeholder-ish.
+ * - `normal`  : also flag when any required text field is empty/whitespace.
+ * - `lenient` : (default) also flag known placeholder markers and very short
+ *               `info` strings — catches half-finished or auto-stubbed leaves.
+ *
+ * Resolved from POLISH_LENIENCY env var (default `lenient`).
  */
-export function isIncompleteLeaf(leaf: LeafLike | undefined | null): boolean {
+export type Leniency = "strict" | "normal" | "lenient";
+
+export function resolveLeniency(): Leniency {
+    const raw = (process.env["POLISH_LENIENCY"] ?? "").trim().toLowerCase();
+    if (raw === "strict" || raw === "low") return "strict";
+    if (raw === "normal" || raw === "medium") return "normal";
+    return "lenient";
+}
+
+/**
+ * A leaf is "incomplete" — and so will be re-generated — based on `leniency`.
+ * See {@link Leniency} for thresholds.
+ */
+export function isIncompleteLeaf(
+    leaf: LeafLike | undefined | null,
+    leniency: Leniency = "lenient",
+): boolean {
     if (!leaf || typeof leaf !== "object") return true;
     const info = str(leaf.info);
     const usage = str(leaf.usage);
     const owner = str(leaf.owner);
     const type = str(leaf.type);
 
+    if (leniency === "strict") {
+        // Re-generate only if the leaf has nothing at all in its text fields.
+        return !info && !usage && !owner && !type;
+    }
+
     if (!info || !usage || !owner || !type) return true;
+
+    if (leniency === "normal") return false;
+
+    // lenient
     if (isPlaceholder(info) || isPlaceholder(usage) || isPlaceholder(owner)) return true;
     if (info.length < 15) return true;
     return false;

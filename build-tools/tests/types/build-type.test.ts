@@ -97,6 +97,89 @@ describe("BuildConfig schema", () => {
         expect(result.success).toBe(false);
     });
 
+    it("accepts attribute nodes with a child key literally named `required`", () => {
+        const leafDesc = {
+            required: false,
+            usage: "true",
+            info: "Specifies if BPP requires form data for order confirmation.",
+            owner: "BPP",
+            type: "boolean",
+        };
+        const objDesc = {
+            required: false,
+            usage: "--",
+            info: "xinput container.",
+            owner: "BPP",
+            type: "object",
+        };
+        const config = makeConfig({
+            "x-attributes": [
+                {
+                    meta: { use_case_id: "uc-alpha" },
+                    attribute_set: {
+                        select: {
+                            message: {
+                                order: {
+                                    items: {
+                                        xinput: {
+                                            _description: objDesc,
+                                            required: { _description: leafDesc },
+                                            form: {
+                                                _description: objDesc,
+                                                data: {
+                                                    _description: objDesc,
+                                                    requestAmount: {
+                                                        _description: objDesc,
+                                                        required: { _description: leafDesc },
+                                                    },
+                                                },
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            ],
+        });
+        const result = BuildConfig.safeParse(config);
+        if (!result.success) {
+            // Surface issue details when this regresses.
+            // eslint-disable-next-line no-console
+            console.error(result.error.issues);
+        }
+        expect(result.success).toBe(true);
+    });
+
+    it("reports `_description` errors with a path prefixed by `_description`", () => {
+        const config = makeConfig({
+            "x-attributes": [
+                {
+                    meta: { use_case_id: "uc-alpha" },
+                    attribute_set: {
+                        search: {
+                            message: {
+                                _description: {
+                                    // missing usage/info/owner/type — should still parse
+                                    // (AttributeLeafZ coerces with .catch defaults), so
+                                    // make it actually invalid by passing a non-object.
+                                } as any,
+                                intent: "not-an-object" as any,
+                            },
+                        },
+                    },
+                },
+            ],
+        });
+        const result = BuildConfig.safeParse(config);
+        expect(result.success).toBe(false);
+        if (!result.success) {
+            const paths = result.error.issues.map((i) => i.path.join("."));
+            expect(paths.some((p) => p.includes("intent"))).toBe(true);
+        }
+    });
+
     it("infers correct TypeScript type (smoke test)", () => {
         const config = makeConfig();
         const parsed = BuildConfig.parse(config);

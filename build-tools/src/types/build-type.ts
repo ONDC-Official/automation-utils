@@ -141,31 +141,50 @@ const AttributeTagEntryZ: z.ZodType<AttributeTagEntry> = z.lazy(() =>
 
 const AttributeValueZ: z.ZodType<unknown> = z.lazy(() =>
     z
-        .custom<unknown>((val) => typeof val === "object" && val !== null, {
-            message: "Expected object",
-        })
+        .custom<unknown>(
+            (val) => typeof val === "object" && val !== null && !Array.isArray(val),
+            { message: "Expected object" },
+        )
         .superRefine((val, ctx) => {
-            const isLeaf = "required" in (val as any);
-            const result = isLeaf ? AttributeLeafZ.safeParse(val) : AttributeNodeZ.safeParse(val);
+            const obj = val as Record<string, unknown>;
 
-            if (!result.success) {
-                for (const issue of result.error.issues) {
-                    ctx.addIssue({
-                        ...issue,
-                        path: [...(issue.path ?? [])],
-                    });
+            if ("_description" in obj) {
+                const r = AttributeLeafZ.safeParse(obj["_description"]);
+                if (!r.success) {
+                    for (const issue of r.error.issues) {
+                        ctx.addIssue({
+                            ...issue,
+                            path: ["_description", ...(issue.path ?? [])],
+                        });
+                    }
+                }
+            }
+
+            for (const [k, v] of Object.entries(obj)) {
+                if (k === "_description") continue;
+                const r = AttributeValueZ.safeParse(v);
+                if (!r.success) {
+                    for (const issue of r.error.issues) {
+                        ctx.addIssue({
+                            ...issue,
+                            path: [k, ...(issue.path ?? [])],
+                        });
+                    }
                 }
             }
         }),
 );
 
-export const AttributeNodeZ: z.ZodType<unknown> = z.lazy(() =>
-    z.record(z.string(), AttributeValueZ),
-);
+// AttributeNodeZ and AttributeValueZ describe the same shape: every node may
+// carry a `_description` metadata block plus arbitrarily-named child nodes
+// (which may themselves be named e.g. `required` — a real attribute key in
+// xinput payloads). All recursion lives inside AttributeValueZ so child keys
+// are always treated as nodes, never mistaken for metadata fields.
+export const AttributeNodeZ: z.ZodType<unknown> = AttributeValueZ;
 
 const AttributeSetZ = z.object({
     meta: z.looseObject({ use_case_id: z.string().optional() }).optional(),
-    attribute_set: z.record(z.string(), AttributeNodeZ).optional(),
+    attribute_set: z.record(z.string(), AttributeValueZ).optional(),
 });
 
 // ─── Error Codes ──────────────────────────────────────────────────────────────

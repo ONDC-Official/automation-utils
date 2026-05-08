@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from "fs";
 import { join } from "path";
 import type { PolishStep } from "../types.js";
 import { walkFlowsForObservations } from "../attributes/walker.js";
-import { isIncompleteLeaf, lookupExistingLeaf } from "../attributes/placeholder.js";
+import { isIncompleteLeaf, lookupExistingLeaf, resolveLeniency } from "../attributes/placeholder.js";
 import type { LeafObservation } from "../attributes/types.js";
 
 export type AttributeGap = {
@@ -26,6 +26,9 @@ export const attributesDetectStep: PolishStep = {
             ui.warn("POLISH_FORCE_ALL_GAPS=1 — every observed attribute will be treated as a gap");
         }
 
+        const leniency = resolveLeniency();
+        ui.stat("leniency", leniency);
+
         ui.spin("checking each observed path against existing x-attributes");
         const existingSets = ctx.config["x-attributes"] ?? [];
         let gaps: AttributeGap[] = [];
@@ -39,7 +42,7 @@ export const attributesDetectStep: PolishStep = {
         }> = [];
         for (const obs of observationsNonRoot) {
             const leaf = lookupExistingLeaf(existingSets, obs.ucId, obs.path);
-            const incomplete = isIncompleteLeaf(leaf);
+            const incomplete = isIncompleteLeaf(leaf, leniency);
             const isGap = forceAll || incomplete;
             let reason: string;
             if (forceAll) reason = "force_all";
@@ -73,6 +76,7 @@ export const attributesDetectStep: PolishStep = {
                     totalObservations: observationsNonRoot.length,
                     gapsCount: gaps.length,
                     forceAll,
+                    leniency,
                     entries: debug,
                 },
                 null,
