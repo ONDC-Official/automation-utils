@@ -76,6 +76,7 @@ const FlowEntryZ = z.object({
     type: z.literal("playground"),
     id: z.string(),
     usecase: z.string(),
+    meta: z.record(z.string(), z.unknown()).optional(),
     tags: z.array(z.string()),
     description: z.string(),
     config: FlowZ,
@@ -141,10 +142,9 @@ const AttributeTagEntryZ: z.ZodType<AttributeTagEntry> = z.lazy(() =>
 
 const AttributeValueZ: z.ZodType<unknown> = z.lazy(() =>
     z
-        .custom<unknown>(
-            (val) => typeof val === "object" && val !== null && !Array.isArray(val),
-            { message: "Expected object" },
-        )
+        .custom<unknown>((val) => typeof val === "object" && val !== null && !Array.isArray(val), {
+            message: "Expected object",
+        })
         .superRefine((val, ctx) => {
             const obj = val as Record<string, unknown>;
 

@@ -47,7 +47,11 @@ export const flowsDraftStep: PolishStep = {
             async (task) => {
                 try {
                     if (task.kind === "flow") {
-                        const description = await draftFlowDescription(ctx.llm, task.ref);
+                        const description = await draftFlowDescription(
+                            ctx.llm,
+                            task.ref,
+                            ctx.pdfIndex,
+                        );
                         return { kind: "flow", ref: task.ref, description };
                     }
                     const subtree = getActionAttributeSubtree(
@@ -59,6 +63,7 @@ export const flowsDraftStep: PolishStep = {
                         ref: task.ref,
                         attributeSubtree: subtree,
                         flowDescription: flowDescByFlowId.get(task.ref.flowId) ?? "",
+                        pdfIndex: ctx.pdfIndex,
                     });
                     return { kind: "step", ref: task.ref, description };
                 } catch (err) {

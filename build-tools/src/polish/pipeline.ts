@@ -1,5 +1,6 @@
 import type { PolishStep } from "./types.js";
 import { scaffoldStep } from "./steps/scaffold.js";
+import { contextPdfsLoadStep } from "./steps/context-pdfs-load.js";
 import { overviewDetectStep } from "./steps/overview-detect.js";
 import { overviewQuestionsStep } from "./steps/overview-questions.js";
 import { overviewComposeStep } from "./steps/overview-compose.js";
@@ -27,10 +28,11 @@ import { flowsWriteStep } from "./steps/flows-write.js";
  */
 export const POLISH_PIPELINE: PolishStep[] = [
     scaffoldStep,
-    overviewDetectStep,
-    overviewQuestionsStep,
-    overviewComposeStep,
-    overviewWriteStep,
+    contextPdfsLoadStep,
+    // overviewDetectStep,
+    // overviewQuestionsStep,
+    // overviewComposeStep,
+    // overviewWriteStep,
     attributesDetectStep,
     attributesMineStep,
     attributesDedupStep,
@@ -38,8 +40,8 @@ export const POLISH_PIPELINE: PolishStep[] = [
     attributesDraftStep,
     attributesReviewStep,
     attributesWriteStep,
-    flowsDetectStep,
-    flowsDraftStep,
-    flowsReviewStep,
-    flowsWriteStep,
+    // flowsDetectStep,
+    // flowsDraftStep,
+    // flowsReviewStep,
+    // flowsWriteStep,
 ];

@@ -2,7 +2,11 @@ import { mkdirSync, writeFileSync } from "fs";
 import { join } from "path";
 import type { PolishStep } from "../types.js";
 import { walkFlowsForObservations } from "../attributes/walker.js";
-import { isIncompleteLeaf, lookupExistingLeaf, resolveLeniency } from "../attributes/placeholder.js";
+import {
+    isIncompleteLeaf,
+    lookupExistingLeaf,
+    resolveLeniency,
+} from "../attributes/placeholder.js";
 import type { LeafObservation } from "../attributes/types.js";
 
 export type AttributeGap = {
@@ -17,9 +21,17 @@ export const attributesDetectStep: PolishStep = {
         const { ui } = ctx;
         ui.spin("walking flow payloads");
         const observations = walkFlowsForObservations(ctx.config);
-        const observationsNonRoot = observations.filter((o) => o.pathKey !== "");
         ui.stat("observations", observations.length);
         ui.stat("usecases seen", new Set(observations.map((o) => o.ucId)).size);
+
+        if (ctx.skipUsecases.size > 0) {
+            ui.warn(`skipping usecase(s): ${[...ctx.skipUsecases].join(", ")}`);
+        }
+
+        // Drop root observations and any skipped usecases before further processing.
+        const observationsNonRoot = observations
+            .filter((o) => o.pathKey !== "")
+            .filter((o) => !ctx.skipUsecases.has(o.ucId));
 
         const forceAll = process.env["POLISH_FORCE_ALL_GAPS"] === "1";
         if (forceAll) {
@@ -92,9 +104,7 @@ export const attributesDetectStep: PolishStep = {
             const n = Number(limitRaw);
             if (Number.isFinite(n) && n > 0 && gaps.length > n) {
                 gaps = gaps.slice(0, n);
-                ui.warn(
-                    `POLISH_ATTR_LIMIT=${n} — processing only first ${n} gap(s) for test`,
-                );
+                ui.warn(`POLISH_ATTR_LIMIT=${n} — processing only first ${n} gap(s) for test`);
             }
         }
 

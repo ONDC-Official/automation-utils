@@ -65,7 +65,7 @@ export const attributesDraftStep: PolishStep = {
 
         // Sentinel paraphrase queue served via browser UI. Lazy-starts a server
         // when the first <no-enough-data> draft arrives. Drafting never blocks.
-        const paraphrase = createParaphraseController(ctx.llm, ui);
+        const paraphrase = createParaphraseController(ctx.llm, ui, ctx.pdfIndex);
         let sentinelSeen = 0;
 
         const drafts = new Map<string, Map<string, LeafDraft[]>>();

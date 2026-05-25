@@ -7,6 +7,7 @@ import type { ConsoleUI } from "../ui.js";
 import type { ILLMProvider } from "../../knowledge-book/llm/types.js";
 import type { LeafDraft } from "../attributes/types.js";
 import { paraphraseUserDescription, NO_DATA_SENTINEL } from "../attributes/draft.js";
+import type { PdfIndex } from "../context-pdfs/types.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -137,6 +138,7 @@ export type ParaphraseQueueController = {
 export function createParaphraseController(
     llm: ILLMProvider,
     ui: ConsoleUI,
+    pdfIndex?: PdfIndex,
 ): ParaphraseQueueController {
     const tasks = new Map<string, InternalTask>();
     const order: string[] = [];
@@ -220,6 +222,7 @@ export function createParaphraseController(
                         path: t.path,
                         action: t.action,
                         userText,
+                        pdfIndex,
                     });
                     const safe = newInfo && newInfo !== NO_DATA_SENTINEL ? newInfo : userText;
                     for (const d of t.drafts) d.info = safe;

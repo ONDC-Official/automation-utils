@@ -68,6 +68,7 @@
         "ondc-code-generator": "^1.0.1",
         "openai": "^6.34.0",
         "ora": "^9.4.0",
+        "pdf-parse": "^1.1.1",
         "yaml": "^2.8.3",
         "zod": "^4.3.6"
     },
@@ -87,6 +88,7 @@
         "@types/babel__traverse": "^7.28.0",
         "@types/json-pointer": "^1.0.34",
         "@types/node": "^22.19.15",
+        "@types/pdf-parse": "^1.1.5",
         "jest": "^30.3.0",
         "mongodb": "^6.21.0",
         "prettier": "^3.8.1",

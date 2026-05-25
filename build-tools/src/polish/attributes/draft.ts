@@ -1,4 +1,6 @@
 import type { ILLMProvider } from "../../knowledge-book/llm/types.js";
+import type { PdfIndex } from "../context-pdfs/types.js";
+import { formatExcerptBlock, retrieveExcerpts } from "../context-pdfs/retrieve.js";
 import type { ContextBundle, EnumEntry, LeafDraft, TagEntry } from "./types.js";
 
 const RETRY_ATTEMPTS = 1;
@@ -259,8 +261,11 @@ function parseDraftText(raw: string): string {
 
 export async function paraphraseUserDescription(
     llm: ILLMProvider,
-    args: { path: string; action: string; userText: string },
+    args: { path: string; action: string; userText: string; pdfIndex?: PdfIndex },
 ): Promise<string> {
+    const pdfQuery = [args.path, args.action, args.userText].filter(Boolean).join(" ");
+    const pdfBlock = formatExcerptBlock(retrieveExcerpts(args.pdfIndex, pdfQuery));
+
     const prompt = `You are an ONDC protocol documentation writer.
 Rewrite the developer's note below into a 1–2 sentence ONDC-style description for attribute "${args.path}" in action "${args.action}".
 
@@ -271,7 +276,7 @@ ACTION-AWARE FRAMING
 OUTPUT
 - Plain text only. NO JSON, markdown, code fences, or surrounding quotes.
 - 1–2 sentences. Specific to THIS attribute. No path restatement, no boilerplate, no preamble.
-
+${pdfBlock ? "\n" + pdfBlock + "\n" : ""}
 DEVELOPER NOTE
 ${args.userText}
 

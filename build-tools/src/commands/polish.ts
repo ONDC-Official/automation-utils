@@ -16,6 +16,8 @@ interface PolishOptions {
     provider?: string;
     model?: string;
     apiKey?: string;
+    contextPdf?: string[];
+    skipUsecase?: string[];
 }
 
 export function createPolishCommand(): Command {
@@ -37,6 +39,21 @@ export function createPolishCommand(): Command {
         .option("--provider <name>", "LLM provider — overrides AI_TYPE env var")
         .option("--model <model>", "Model name — overrides AI_MODEL env var")
         .option("--api-key <key>", "API key — overrides AI_API_KEY env var")
+        .option(
+            "--context-pdf <path>",
+            "Path to a domain PDF to enrich prompts (repeatable). Extracted once " +
+                "and cached under <output>/.polish/context-pdfs/; only retrieval-selected " +
+                "excerpts (≤1500 chars) are injected per LLM call.",
+            (val: string, prior: string[] = []) => [...prior, val],
+            [] as string[],
+        )
+        .option(
+            "--skip-usecase <id>",
+            "Usecase ID to skip entirely (repeatable). Skipped usecases are not drafted, " +
+                "reviewed, or written — their existing attribute files are left untouched.",
+            (val: string, prior: string[] = []) => [...prior, val],
+            [] as string[],
+        )
         .action(async (opts: PolishOptions) => {
             const ui = new ConsoleUI();
             const inputDir = resolve(opts.input);
@@ -107,6 +124,15 @@ export function createPolishCommand(): Command {
             const attrLimit = process.env["POLISH_ATTR_LIMIT"];
             const flowLimit = process.env["POLISH_FLOW_LIMIT"];
 
+            const contextPdfPaths = (opts.contextPdf ?? []).map((p) => resolve(p));
+            const skipUsecases = new Set<string>(opts.skipUsecase ?? []);
+            for (const p of contextPdfPaths) {
+                if (!existsSync(p)) {
+                    console.error(chalk.red(`\n  error: context PDF not found: ${p}\n`));
+                    process.exit(1);
+                }
+            }
+
             const limits = [
                 attrLimit ? `POLISH_ATTR_LIMIT=${attrLimit}` : null,
                 flowLimit ? `POLISH_FLOW_LIMIT=${flowLimit}` : null,
@@ -120,6 +146,8 @@ export function createPolishCommand(): Command {
                 phase: phaseFilter,
                 provider,
                 model,
+                ...(contextPdfPaths.length ? { contextPdfs: String(contextPdfPaths.length) } : {}),
+                ...(skipUsecases.size ? { skipUsecases: [...skipUsecases].join(", ") } : {}),
                 ...(limits ? { testMode: limits } : {}),
             });
             console.log(chalk.dim("  Press Ctrl+C at any time to abort.\n"));
@@ -158,10 +186,17 @@ export function createPolishCommand(): Command {
                 process.exit(1);
             }
 
-            const ctx: PolishContext = { inputDir, outputDir, config, llm, ui, state: {} };
-            const activeSteps = POLISH_PIPELINE.filter((s) =>
-                shouldRunStep(s.id, phaseFilter),
-            );
+            const ctx: PolishContext = {
+                inputDir,
+                outputDir,
+                config,
+                llm,
+                ui,
+                state: {},
+                contextPdfPaths,
+                skipUsecases,
+            };
+            const activeSteps = POLISH_PIPELINE.filter((s) => shouldRunStep(s.id, phaseFilter));
 
             for (let i = 0; i < activeSteps.length; i++) {
                 const step = activeSteps[i]!;
@@ -189,7 +224,10 @@ export function createPolishCommand(): Command {
 
 function shouldRunStep(stepId: string, phaseFilter: string): boolean {
     if (phaseFilter === "all") return true;
+    // Always-run prep steps regardless of phase: scaffold + context-pdfs-load
+    // (downstream phases consume ctx.pdfIndex).
     if (stepId === "scaffold") return true;
+    if (stepId === "context-pdfs-load") return true;
     if (phaseFilter === "overview" && stepId.startsWith("overview-")) return true;
     if (phaseFilter === "attributes" && stepId.startsWith("attributes-")) return true;
     if (phaseFilter === "flows" && stepId.startsWith("flows-")) return true;

@@ -38,6 +38,10 @@ export const attributesWriteStep: PolishStep = {
         }
 
         for (const ucId of allUsecases) {
+            if (ctx.skipUsecases.has(ucId)) {
+                ui.info(`skipping ${ucId} (--skip-usecase)`);
+                continue;
+            }
             const existing = existingSets.find((s) => s.meta?.use_case_id === ucId);
             const obs = obsByUc.get(ucId) ?? [];
 

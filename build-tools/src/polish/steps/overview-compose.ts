@@ -1,5 +1,6 @@
 import type { PolishStep } from "../types.js";
 import type { OverviewAnswers } from "./overview-questions.js";
+import { retrieveExcerpts, formatExcerptBlock } from "../context-pdfs/retrieve.js";
 
 export const overviewComposeStep: PolishStep = {
     id: "overview-compose",
@@ -29,6 +30,25 @@ export const overviewComposeStep: PolishStep = {
                 ?.supportedActions ?? {},
         ).length;
 
+        const pdfQuery = [
+            domain,
+            version,
+            "overview",
+            (config.info["x-usecases"] ?? []).join(" "),
+            answers.sector,
+            answers.problem,
+        ]
+            .filter(Boolean)
+            .join(" ");
+        const pdfExcerpts = retrieveExcerpts(ctx.pdfIndex, pdfQuery);
+        const pdfBlock = formatExcerptBlock(pdfExcerpts);
+        if (pdfExcerpts.excerpts.length > 0) {
+            ui.note(
+                `pdf-context: ${pdfExcerpts.excerpts.length} excerpt(s), ${pdfExcerpts.totalChars} chars`,
+                "dim",
+            );
+        }
+
         const prompt = `You are a technical documentation specialist writing the domain overview for an ONDC build config.
 
 Write so a developer new to ONDC understands what this domain does in the real economy before any technical detail. Lead with the sector, what's being transacted, and who transacts — not protocol mechanics.
@@ -45,7 +65,7 @@ Include these sections (use \`##\` subheadings, in this order):
 - Example Scenario (a concrete walkthrough grounded in the author's example)
 
 Use the author's answers verbatim where possible; expand with domain-appropriate phrasing. Do not invent facts outside the provided context. No trailing metadata, no code fences around the whole doc.
-
+${pdfBlock ? "\n" + pdfBlock + "\n" : ""}
 ---
 Domain: ${domain}
 Version: ${version}
