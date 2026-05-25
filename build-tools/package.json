@@ -1,6 +1,6 @@
 {
     "name": "@ondc/build-tools",
-    "version": "0.0.20",
+    "version": "0.0.22",
     "description": "ONDC build toolchain — CLI for pipeline ops + library for MongoDB ingestion",
     "type": "module",
     "main": "./dist/lib.js",
@@ -53,7 +53,6 @@
     },
     "dependencies": {
         "@anthropic-ai/claude-agent-sdk": "^0.2.121",
-        "@anthropic-ai/claude-agent-sdk-darwin-arm64": "^0.2.121",
         "@anthropic-ai/sdk": "^0.90.0",
         "@babel/parser": "^7.29.2",
         "@babel/traverse": "^7.29.0",
