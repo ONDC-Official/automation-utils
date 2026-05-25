@@ -150,6 +150,7 @@ export async function ingestBuild(db: Db, config: BuildConfig): Promise<IngestRe
                         usecase: f.usecase,
                         tags: f.tags,
                         description: f.description,
+                        meta: f.meta,
                         config: f.config,
                         updatedAt: now,
                     } satisfies StoredBuildFlow,

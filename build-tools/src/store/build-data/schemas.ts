@@ -65,6 +65,7 @@ export interface StoredBuildFlow extends DomainVersion {
     usecase: string;
     tags: string[];
     description: string;
+    meta?: Record<string, unknown>;
     /** Full flow config — kept as opaque JSON to avoid coupling to mock-runner types. */
     config: unknown;
     updatedAt: Date;
