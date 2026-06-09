@@ -228,7 +228,7 @@ export const BuildConfig = z.object({
     }),
     security: z.any(),
     paths: z.any(),
-    components: z.any(),
+    components: z.any().optional(),
     "x-attributes": z.array(AttributeSetZ),
     "x-validations": z.unknown(),
     "x-errorcodes": ErrorCodesZ,
