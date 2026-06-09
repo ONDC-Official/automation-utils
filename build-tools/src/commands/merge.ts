@@ -12,6 +12,21 @@ export interface ParseOptions {
 // ─── $ref resolver ───────────────────────────────────────────────────────────
 
 /**
+ * Thrown when a $ref's file resolves but the JSON pointer into it is missing.
+ * Distinguished from generic errors so optional sections can be skipped.
+ */
+class RefPointerNotFoundError extends Error {
+    constructor(
+        public readonly ref: string,
+        public readonly pointer: string,
+        public readonly absPath: string,
+    ) {
+        super(`$ref "${ref}": JSON pointer "${pointer}" not found in ${absPath}`);
+        this.name = "RefPointerNotFoundError";
+    }
+}
+
+/**
  * Resolve a single $ref string relative to `baseDir`.
  *
  * Supported forms:
@@ -48,7 +63,7 @@ function resolveRef(ref: string, baseDir: string): unknown {
     try {
         return jsonPointer.get(doc as object, pointer);
     } catch {
-        throw new Error(`$ref "${ref}": JSON pointer "${pointer}" not found in ${absPath}`);
+        throw new RefPointerNotFoundError(ref, pointer, absPath);
     }
 }
 
@@ -100,13 +115,24 @@ export function resolveRefs(value: unknown, baseDir: string): unknown {
     const result: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(obj)) {
         if (isRefObject(v)) {
-            const resolved = resolveRef((v as RefObject).$ref, baseDir);
+            const refStr = (v as RefObject).$ref;
             // For OpenAPI sections that carry their own $refs, load the file but
-            // do not recurse — preserve nested $refs as-is.
+            // do not recurse — preserve nested $refs as-is. These sections are
+            // optional (e.g. a spec may have no `components`), so a missing
+            // pointer is skipped with a warning rather than aborting the parse.
             if (OPENAPI_PASSTHROUGH_KEYS.has(k)) {
-                result[k] = resolved;
+                try {
+                    result[k] = resolveRef(refStr, baseDir);
+                } catch (err) {
+                    if (err instanceof RefPointerNotFoundError) {
+                        console.warn(`  warn: skipping optional "${k}" — ${err.message}`);
+                    } else {
+                        throw err;
+                    }
+                }
             } else {
-                const [filePart] = (v as RefObject).$ref.split("#");
+                const resolved = resolveRef(refStr, baseDir);
+                const [filePart] = refStr.split("#");
                 const targetAbs = resolve(baseDir, filePart);
                 const refBaseDir =
                     existsSync(targetAbs) && statSync(targetAbs).isDirectory()
