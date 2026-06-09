@@ -32,8 +32,8 @@ export function createPolishCommand(): Command {
         )
         .requiredOption("-o, --output <path>", "Path to output split-config directory")
         .option(
-            "--phase <name>",
-            "Run only a specific phase: overview | attributes | flows | all",
+            "--phase <names>",
+            "Comma-separated phases to run: overview | attributes | flows | all (e.g. overview,flows)",
             "all",
         )
         .option("--provider <name>", "LLM provider — overrides AI_TYPE env var")
@@ -121,6 +121,22 @@ export function createPolishCommand(): Command {
             );
 
             const phaseFilter = (opts.phase ?? "all").toLowerCase();
+            const phases = new Set(
+                phaseFilter
+                    .split(",")
+                    .map((p) => p.trim())
+                    .filter(Boolean),
+            );
+            const allowedPhases = new Set(["overview", "attributes", "flows", "all"]);
+            const badPhases = [...phases].filter((p) => !allowedPhases.has(p));
+            if (badPhases.length > 0) {
+                console.error(
+                    chalk.red(
+                        `\n  error: unknown phase(s) "${badPhases.join(", ")}" — expected overview | attributes | flows | all\n`,
+                    ),
+                );
+                process.exit(1);
+            }
             const attrLimit = process.env["POLISH_ATTR_LIMIT"];
             const flowLimit = process.env["POLISH_FLOW_LIMIT"];
 
@@ -196,7 +212,7 @@ export function createPolishCommand(): Command {
                 contextPdfPaths,
                 skipUsecases,
             };
-            const activeSteps = POLISH_PIPELINE.filter((s) => shouldRunStep(s.id, phaseFilter));
+            const activeSteps = POLISH_PIPELINE.filter((s) => shouldRunStep(s.id, phases));
 
             for (let i = 0; i < activeSteps.length; i++) {
                 const step = activeSteps[i]!;
@@ -222,14 +238,14 @@ export function createPolishCommand(): Command {
         });
 }
 
-function shouldRunStep(stepId: string, phaseFilter: string): boolean {
-    if (phaseFilter === "all") return true;
+function shouldRunStep(stepId: string, phases: Set<string>): boolean {
+    if (phases.has("all") || phases.size === 0) return true;
     // Always-run prep steps regardless of phase: scaffold + context-pdfs-load
     // (downstream phases consume ctx.pdfIndex).
     if (stepId === "scaffold") return true;
     if (stepId === "context-pdfs-load") return true;
-    if (phaseFilter === "overview" && stepId.startsWith("overview-")) return true;
-    if (phaseFilter === "attributes" && stepId.startsWith("attributes-")) return true;
-    if (phaseFilter === "flows" && stepId.startsWith("flows-")) return true;
+    if (phases.has("overview") && stepId.startsWith("overview-")) return true;
+    if (phases.has("attributes") && stepId.startsWith("attributes-")) return true;
+    if (phases.has("flows") && stepId.startsWith("flows-")) return true;
     return false;
 }
