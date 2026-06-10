@@ -2,6 +2,7 @@ import type { ILLMProvider } from "../../knowledge-book/llm/types.js";
 import type { PdfIndex } from "../context-pdfs/types.js";
 import { formatExcerptBlock, retrieveExcerpts } from "../context-pdfs/retrieve.js";
 import type { ContextBundle, EnumEntry, LeafDraft, TagEntry } from "./types.js";
+import type { ReuseMatch } from "./reuse.js";
 
 const RETRY_ATTEMPTS = 1;
 
@@ -9,7 +10,8 @@ export type BatchEvent =
     | { kind: "start" }
     | { kind: "ok"; attempt: number; elapsedMs: number }
     | { kind: "retry"; attempt: number; reason: string }
-    | { kind: "fallback"; reason: string };
+    | { kind: "fallback"; reason: string }
+    | { kind: "reused"; from: string; info: string };
 
 export type BatchEventHandler = (ev: BatchEvent) => void;
 
@@ -60,31 +62,58 @@ type LLMInputAttr = {
         persisted_key?: string;
         consumed_across_steps: boolean;
     };
+    prior_reviewed?: Array<{ info: string }>;
 };
 
-export type DraftItem = { action: string; bundle: ContextBundle };
+export type DraftItem = { action: string; bundle: ContextBundle; reuse?: ReuseMatch[] };
+
+export type DraftOptions = { reuseVerbatim?: boolean };
 
 export async function draftLeaves(
     llm: ILLMProvider,
     items: DraftItem[],
     onEvent?: BatchEventHandler,
+    opts?: DraftOptions,
 ): Promise<LeafDraft[]> {
     const drafts: LeafDraft[] = [];
     for (const item of items) {
-        const draft = await draftOneWithRetry(llm, item, onEvent);
+        const draft = await draftOneWithRetry(llm, item, onEvent, opts);
         drafts.push(draft);
     }
     return drafts;
+}
+
+/** First reusable match whose info is safe to adopt verbatim, if any. */
+function firstUsableReuse(item: DraftItem): ReuseMatch | undefined {
+    return (item.reuse ?? []).find(
+        (m) =>
+            m.info.trim().length > 0 &&
+            !m.info.startsWith("AUTO-FALLBACK") &&
+            m.info !== NO_DATA_SENTINEL,
+    );
 }
 
 async function draftOneWithRetry(
     llm: ILLMProvider,
     item: DraftItem,
     onEvent?: BatchEventHandler,
+    opts?: DraftOptions,
 ): Promise<LeafDraft> {
     onEvent?.({ kind: "start" });
-    const input = itemToLLMInput(item);
     const bundle = item.bundle;
+
+    // Verbatim/skip mode: adopt the first reviewed match without calling the LLM.
+    // owner/type/required/usage are re-derived per member downstream in the step.
+    if (opts?.reuseVerbatim) {
+        const match = firstUsableReuse(item);
+        if (match) {
+            const draft = applyExisting([buildDraftFromInfo(match.info, bundle)], [bundle])[0]!;
+            onEvent?.({ kind: "reused", from: match.usecase || match.action, info: match.info });
+            return draft;
+        }
+    }
+
+    const input = itemToLLMInput(item);
     let lastReason = "";
     for (let attempt = 0; attempt <= RETRY_ATTEMPTS; attempt++) {
         const started = Date.now();
@@ -181,6 +210,9 @@ export function itemToLLMInput(it: DraftItem): LLMInputAttr {
         };
         if (b.crossFlow.persistedKey) out.cross_flow.persisted_key = b.crossFlow.persistedKey;
     }
+    if (it.reuse && it.reuse.length > 0) {
+        out.prior_reviewed = it.reuse.map((m) => ({ info: m.info }));
+    }
     return out;
 }
 
@@ -211,6 +243,7 @@ CONTAINER RULE (when \`is_leaf\` is false)
 EVIDENCE PRECEDENCE (higher tier wins on conflict)
 1. \`openapi.description\` / \`openapi.custom\` — authoritative ONDC spec text.
 2. \`existing_leaf.info\` — prior curated text. Rephrase if good; rewrite if generic/vague/contradicted.
+2b. \`prior_reviewed\` — human-reviewed descriptions of THIS attribute at this action from prior polished domains. Treat as strong, near-authoritative guidance: prefer rephrasing/merging this text over inventing new wording. If it conflicts with tier 1, tier 1 wins. These come from a DIFFERENT usecase — drop any usecase-specific detail not supported by the evidence below.
 3. \`referenced_in\` — code refs. \`role\` = read|write|delete; \`gated_by\` = the predicate gating the operation. If \`gated_by\` present, mention the gate once.
 4. \`save_data\` — \`inherited:true\` means the attribute travels inside an ancestor stored under \`ancestor_jsonpath\`. Mention persistence only when it is the most informative signal.
 5. \`session_reads\` — \`origin_action\` + \`origin_path\` show upstream provenance.

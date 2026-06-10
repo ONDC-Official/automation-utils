@@ -3,6 +3,7 @@ import { join } from "path";
 import type { PolishStep } from "../types.js";
 import type { DedupGroup } from "../attributes/types.js";
 import { buildPrompt, itemToLLMInput, type DraftItem } from "../attributes/draft.js";
+import { lookupReuse } from "../attributes/reuse.js";
 
 function slugify(s: string): string {
     return s.replace(/[^\w]+/g, "_").slice(0, 80);
@@ -27,9 +28,11 @@ export const attributesPreviewPromptsStep: PolishStep = {
         ];
 
         for (const g of groups) {
+            const action = g.members[0]!.action;
             const item: DraftItem = {
-                action: g.members[0]!.action,
+                action,
                 bundle: g.representative,
+                reuse: lookupReuse(ctx.reuseIndex, action, g.representative.obs.pathKey),
             };
             const inputs = [itemToLLMInput(item)];
             const prompt = buildPrompt(inputs, "");

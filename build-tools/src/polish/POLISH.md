@@ -46,10 +46,14 @@ npx tsx src/index.ts polish \
   -o path/to/output \
   [--phase overview|attributes|flows|all] \
   [--provider anthropic|openai-compat|claude-code] \
-  [--model <id>] [--api-key <key>]
+  [--model <id>] [--api-key <key>] \
+  [--context-pdf <path>...] [--skip-usecase <id>...] \
+  [--reuse-from <path>...] [--reuse-verbatim]
 ```
 
-Phase filter (`src/commands/polish.ts:190`): `scaffold` always runs; other steps are gated by prefix match on `--phase`.
+Phase filter (`shouldRunStep` in `src/commands/polish.ts`): prep steps `scaffold`, `context-pdfs-load`, `reuse-load` always run; other steps are gated by prefix match on `--phase`.
+
+**Reuse of prior reviewed descriptions** (`--reuse-from`, repeatable): point at one or more external polished configs (a folder containing `.polish/attributes-review/`, or an `attributes-review` dir directly). Their **approved** descriptions are indexed by `(action, pathKey)`, **ignoring usecase** — so the same `(action, path)` can match several external usecases (e.g. `GOLD_LOAN__confirm` + `PERSONAL_LOAN__confirm` both defining `context.transaction_id`). Default behaviour **enriches** the draft prompt with up to `MAX_REUSE_MATCHES` (3) matches as a high-priority evidence tier (`prior_reviewed`). With `--reuse-verbatim`, a match instead **skips the LLM** and adopts the first match's `info` verbatim (owner/type/required/usage still derived locally; reused drafts are scored normally in review). Fallback/`<no-enough-data>`/empty descriptions are never indexed. See `src/polish/attributes/reuse.ts` + the `reuse-load` step.
 
 ### Outputs
 

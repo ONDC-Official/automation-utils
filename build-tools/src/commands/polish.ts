@@ -18,6 +18,8 @@ interface PolishOptions {
     apiKey?: string;
     contextPdf?: string[];
     skipUsecase?: string[];
+    reuseFrom?: string[];
+    reuseVerbatim?: boolean;
 }
 
 export function createPolishCommand(): Command {
@@ -53,6 +55,20 @@ export function createPolishCommand(): Command {
                 "reviewed, or written — their existing attribute files are left untouched.",
             (val: string, prior: string[] = []) => [...prior, val],
             [] as string[],
+        )
+        .option(
+            "--reuse-from <path>",
+            "Path to an external polished config (folder containing .polish/attributes-review/) " +
+                "or an attributes-review dir directly (repeatable). Approved reviewed descriptions " +
+                "matching (action, path) — ignoring usecase — enrich the LLM prompt as high-priority evidence.",
+            (val: string, prior: string[] = []) => [...prior, val],
+            [] as string[],
+        )
+        .option(
+            "--reuse-verbatim",
+            "When an external match is found, skip LLM generation and adopt the first match's " +
+                "description verbatim (owner/type/required/usage still derived locally). " +
+                "Requires --reuse-from.",
         )
         .action(async (opts: PolishOptions) => {
             const ui = new ConsoleUI();
@@ -149,6 +165,21 @@ export function createPolishCommand(): Command {
                 }
             }
 
+            // Reuse is opportunistic — warn (don't fail) on missing paths; the
+            // reuse-load step resolves/validates and emits per-source warnings.
+            const reuseFromPaths = (opts.reuseFrom ?? []).map((p) => resolve(p));
+            const reuseVerbatim = Boolean(opts.reuseVerbatim);
+            for (const p of reuseFromPaths) {
+                if (!existsSync(p)) {
+                    console.log(chalk.yellow(`  ⚠ reuse path not found (skipping): ${p}`));
+                }
+            }
+            if (reuseVerbatim && reuseFromPaths.length === 0) {
+                console.log(
+                    chalk.yellow("  ⚠ --reuse-verbatim has no effect without --reuse-from"),
+                );
+            }
+
             const limits = [
                 attrLimit ? `POLISH_ATTR_LIMIT=${attrLimit}` : null,
                 flowLimit ? `POLISH_FLOW_LIMIT=${flowLimit}` : null,
@@ -164,6 +195,12 @@ export function createPolishCommand(): Command {
                 model,
                 ...(contextPdfPaths.length ? { contextPdfs: String(contextPdfPaths.length) } : {}),
                 ...(skipUsecases.size ? { skipUsecases: [...skipUsecases].join(", ") } : {}),
+                ...(reuseFromPaths.length
+                    ? {
+                          reuseFrom: String(reuseFromPaths.length),
+                          reuseMode: reuseVerbatim ? "verbatim" : "enrich",
+                      }
+                    : {}),
                 ...(limits ? { testMode: limits } : {}),
             });
             console.log(chalk.dim("  Press Ctrl+C at any time to abort.\n"));
@@ -211,6 +248,8 @@ export function createPolishCommand(): Command {
                 state: {},
                 contextPdfPaths,
                 skipUsecases,
+                reuseFromPaths,
+                reuseVerbatim,
             };
             const activeSteps = POLISH_PIPELINE.filter((s) => shouldRunStep(s.id, phases));
 
@@ -244,6 +283,7 @@ function shouldRunStep(stepId: string, phases: Set<string>): boolean {
     // (downstream phases consume ctx.pdfIndex).
     if (stepId === "scaffold") return true;
     if (stepId === "context-pdfs-load") return true;
+    if (stepId === "reuse-load") return true;
     if (phases.has("overview") && stepId.startsWith("overview-")) return true;
     if (phases.has("attributes") && stepId.startsWith("attributes-")) return true;
     if (phases.has("flows") && stepId.startsWith("flows-")) return true;

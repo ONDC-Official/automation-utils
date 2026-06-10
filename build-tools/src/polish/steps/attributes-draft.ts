@@ -2,6 +2,7 @@ import type { PolishStep } from "../types.js";
 import { draftLeaves, NO_DATA_SENTINEL, type BatchEvent, type DraftItem } from "../attributes/draft.js";
 import type { DedupGroup, LeafDraft } from "../attributes/types.js";
 import { deriveOwner, deriveRequired, deriveType, deriveUsage } from "../attributes/dedup.js";
+import { lookupReuse } from "../attributes/reuse.js";
 import { getConcurrency, runWithConcurrency } from "../review/concurrency.js";
 import { createParaphraseController } from "../review/paraphrase-server.js";
 
@@ -15,6 +16,7 @@ type Tally = {
     unitsTotal: number;
     retries: number;
     fallbacks: number;
+    reused: number;
     inflight: number;
 };
 
@@ -34,10 +36,14 @@ export const attributesDraftStep: PolishStep = {
             return;
         }
 
-        const units: GroupUnit[] = groups.map((g) => ({
-            items: [{ action: g.members[0]!.action, bundle: g.representative }],
-            group: g,
-        }));
+        const units: GroupUnit[] = groups.map((g) => {
+            const action = g.members[0]!.action;
+            const reuse = lookupReuse(ctx.reuseIndex, action, g.representative.obs.pathKey);
+            return {
+                items: [{ action, bundle: g.representative, reuse }],
+                group: g,
+            };
+        });
 
         const totalGroups = units.length;
         const totalMembers = groups.reduce((n, g) => n + g.members.length, 0);
@@ -52,12 +58,14 @@ export const attributesDraftStep: PolishStep = {
             unitsTotal: totalGroups,
             retries: 0,
             fallbacks: 0,
+            reused: 0,
             inflight: 0,
         };
 
         const refreshSpinner = (): void => {
             ui.update(
-                `groups ${tally.unitsDone}/${tally.unitsTotal} · inflight ${tally.inflight} · retries ${tally.retries} · fallbacks ${tally.fallbacks}`,
+                `groups ${tally.unitsDone}/${tally.unitsTotal} · inflight ${tally.inflight} · retries ${tally.retries} · fallbacks ${tally.fallbacks}` +
+                    (tally.reused ? ` · reused ${tally.reused}` : ""),
             );
         };
 
@@ -112,11 +120,17 @@ export const attributesDraftStep: PolishStep = {
                     tally.fallbacks++;
                     refreshSpinner();
                     ui.note(`✗ dummy  ${repPath} — ${truncate(ev.reason, 120)}`, "red");
+                } else if (ev.kind === "reused") {
+                    tally.reused++;
+                    refreshSpinner();
+                    ui.note(`♻ reuse  ${repPath} ← ${ev.from}`, "cyan");
                 }
             };
 
             try {
-                const arr = await draftLeaves(ctx.llm, u.items, onEvent);
+                const arr = await draftLeaves(ctx.llm, u.items, onEvent, {
+                    reuseVerbatim: ctx.reuseVerbatim,
+                });
                 const repDraft = arr[0]!;
                 const infoText = (repDraft.info ?? "").trim();
                 if (infoText) {
@@ -196,6 +210,7 @@ export const attributesDraftStep: PolishStep = {
 
         ui.succeed(
             `drafted ${totalGroups} group(s) → ${totalMembers} attribute(s)` +
+                (tally.reused ? ` · ${tally.reused} reused verbatim` : "") +
                 (tally.retries ? ` · ${tally.retries} retry(ies)` : "") +
                 (tally.fallbacks ? ` · ${tally.fallbacks} fallback group(s)` : "") +
                 (sentinelSeen ? ` · ${sentinelSeen} sentinel(s) routed through paraphrase UI` : ""),

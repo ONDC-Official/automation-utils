@@ -1,6 +1,7 @@
 import type { PolishStep } from "./types.js";
 import { scaffoldStep } from "./steps/scaffold.js";
 import { contextPdfsLoadStep } from "./steps/context-pdfs-load.js";
+import { reuseLoadStep } from "./steps/reuse-load.js";
 import { overviewDetectStep } from "./steps/overview-detect.js";
 import { overviewQuestionsStep } from "./steps/overview-questions.js";
 import { overviewComposeStep } from "./steps/overview-compose.js";
@@ -29,6 +30,7 @@ import { flowsWriteStep } from "./steps/flows-write.js";
 export const POLISH_PIPELINE: PolishStep[] = [
     scaffoldStep,
     contextPdfsLoadStep,
+    reuseLoadStep,
     overviewDetectStep,
     overviewQuestionsStep,
     overviewComposeStep,
