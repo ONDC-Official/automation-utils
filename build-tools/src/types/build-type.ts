@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { MockPlaygroundConfigSchema } from "@ondc/automation-mock-runner";
+import { FdRouteTableZ } from "../fd/route-table.js";
 
 // ─── OpenAPI 3.0 ──────────────────────────────────────────────────────────────
 
@@ -239,6 +240,8 @@ export const BuildConfig = z.object({
     // keyed by file stem (e.g. "overview", "release-notes", "references") with
     // markdown string values. Additional doc files may be added freely.
     "x-docs": z.record(z.string(), z.string()).optional(),
+    // FD builds only: the route table derived by `parse` from the operations' x-fd-* fields.
+    "x-fd-routes": FdRouteTableZ.optional(),
 });
 
 export type BuildConfig = z.infer<typeof BuildConfig>;

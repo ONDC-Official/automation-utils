@@ -44,4 +44,18 @@ export {
 
 export type { ValidationIssue, ValidationResult, ValidationCheck } from "./validations/types.js";
 
+// ─── FD route table ──────────────────────────────────────────────────────────
+
+export {
+    FD_ROUTE_FORMAT_VERSION,
+    FdRouteZ,
+    FdRouteTableZ,
+    canonicalJson,
+    deriveFdRoutes,
+    hasFdOperations,
+    normaliseTemplate,
+    routesHash,
+} from "./fd/route-table.js";
+export type { FdRoute, FdRouteTable } from "./fd/route-table.js";
+
 export * from "./store/index.js";
