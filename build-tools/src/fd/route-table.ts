@@ -112,7 +112,7 @@ export function deriveFdRoutes(paths: unknown, info: { domain: string; version: 
                 operationId: textOrNull(op.operationId),
             } as FdRoute;
         })
-        .sort((a, b) => a.action.localeCompare(b.action) || a.method.localeCompare(b.method));
+        .sort((a, b) => byCodeUnit(a.action, b.action) || byCodeUnit(a.method, b.method));
 
     return {
         formatVersion: FD_ROUTE_FORMAT_VERSION,
@@ -121,6 +121,12 @@ export function deriveFdRoutes(paths: unknown, info: { domain: string; version: 
         tableHash: routesHash(routes),
         routes,
     };
+}
+
+// Code-unit order, as Array.prototype.sort() and Go's sort.Strings use; localeCompare would
+// make the order (and so the table hash) depend on the locale.
+function byCodeUnit(a: string, b: string): number {
+    return a < b ? -1 : a > b ? 1 : 0;
 }
 
 function sortKeys(value: unknown): unknown {

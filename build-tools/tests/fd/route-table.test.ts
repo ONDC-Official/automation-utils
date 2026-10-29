@@ -126,6 +126,22 @@ describe("FD route table", () => {
         expect(hasFdOperations(undefined)).toBe(false);
     });
 
+    it("sorts actions by code unit, not by locale", () => {
+        const op = (action: string) => ({
+            post: {
+                requestBody: {},
+                "x-fd-action": action,
+                "x-fd-kind": "webhook",
+                "x-fd-mode": "WEBHOOK",
+                "x-fd-caller": "DEPOSIT_ISSUER",
+                "x-fd-callee": "INVESTOR_APP",
+            },
+        });
+        // "1" (U+0031) comes before "_" (U+005F); a locale collation puts "_" first.
+        const table = deriveFdRoutes({ "/on_a_b": op("on_a_b"), "/on_a1": op("on_a1") }, FD_INFO);
+        expect(table.routes.map((r) => r.action)).toEqual(["on_a1", "on_a_b"]);
+    });
+
     it("derives one route per operation, sorted by action", () => {
         const table = deriveFdRoutes(FD_PATHS, FD_INFO);
         expect(table.formatVersion).toBe(1);
