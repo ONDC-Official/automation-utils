@@ -3,6 +3,7 @@ import { resolve, join, dirname, extname, basename } from "path";
 import { Command } from "commander";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import jsonPointer from "json-pointer";
+import { deriveFdRoutes, hasFdOperations } from "../fd/route-table.js";
 
 export interface ParseOptions {
     input: string;
@@ -218,6 +219,16 @@ export function createMergeCommand(): Command {
                 const msg = err instanceof Error ? err.message : String(err);
                 console.error(`\n  error: $ref resolution failed: ${msg}\n`);
                 process.exit(1);
+            }
+
+            // FD builds get a route table derived from their operations' x-fd-* fields.
+            // Builds without x-fd-action operations (every Beckn domain) are written unchanged.
+            const config = merged as { paths?: unknown; info?: { domain?: string; version?: string } };
+            if (hasFdOperations(config.paths)) {
+                (merged as Record<string, unknown>)["x-fd-routes"] = deriveFdRoutes(config.paths, {
+                    domain: String(config.info?.domain ?? ""),
+                    version: String(config.info?.version ?? ""),
+                });
             }
 
             const outPath = resolve(opts.output);

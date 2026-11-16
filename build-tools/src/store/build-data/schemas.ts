@@ -8,6 +8,7 @@
  */
 
 import { ChangeLog } from "../../lib.js";
+import type { FdRouteTable } from "../../fd/route-table.js";
 
 // ─── Common ──────────────────────────────────────────────────────────────────
 
@@ -40,6 +41,8 @@ export interface StoredBuildMeta extends DomainVersion {
         string,
         { async_predecessor: string | null; transaction_partner: string[] }
     >;
+    /** FD builds only: the route table (FD-ROUTE-TABLE.md). Absent for Beckn domains. */
+    fdRoutes?: FdRouteTable;
 
     /** SHA-256 hex digest of the full JSON-stringified BuildConfig. */
     buildHash: string;

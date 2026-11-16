@@ -2,6 +2,7 @@ import type { BuildConfig } from "../types/build-type.js";
 import type { ValidationCheck, ValidationResult } from "./types.js";
 import { validateUsecaseIds } from "./validate-usecases.js";
 import { validateFlowConfigs } from "./validate-flow-configs.js";
+import { validateFdRoutes } from "./validate-fd-routes.js";
 
 /**
  * Ordered list of validation checks.
@@ -9,7 +10,11 @@ import { validateFlowConfigs } from "./validate-flow-configs.js";
  * To add a new check:  import it and push it onto this array.
  * To disable a check: remove or comment it out here — nothing else changes.
  */
-export const VALIDATION_PIPELINE: ValidationCheck[] = [validateUsecaseIds, validateFlowConfigs];
+export const VALIDATION_PIPELINE: ValidationCheck[] = [
+    validateUsecaseIds,
+    validateFlowConfigs,
+    validateFdRoutes,
+];
 
 export type PipelineReport = {
     passed: string[];

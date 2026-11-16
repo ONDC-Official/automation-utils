@@ -99,6 +99,8 @@ export async function ingestBuild(db: Db, config: BuildConfig): Promise<IngestRe
         errorCodes: config["x-errorcodes"].code,
         supportedActions: config["x-supported-actions"].supportedActions,
         apiProperties: config["x-supported-actions"].apiProperties,
+        // FD builds only; a Beckn meta document keeps exactly its current fields.
+        ...(config["x-fd-routes"] && { fdRoutes: config["x-fd-routes"] }),
         buildHash,
         ingestedAt: now,
     };
